@@ -105,7 +105,7 @@ MonoBehaviour:
   stepInterval: 0.25
   turnInterval: 2
   turnChance: 0.76
-  moveSpeed: 9
+  moveSpeed: 10
   turnSpeed: 540
   surfaceOffset: 0.02
   groundMask:
@@ -114,6 +114,15 @@ MonoBehaviour:
   CurrentBlock: {x: 0, y: 0, z: 0}
   CurrentGroundY: 0
   currentState: 0
+  maxHealth: 100
+  health: 100
+  healthTickSeconds: 10
+  healthLossPerTick: 10
+  fitness: 0
+  deliverAmount: 10
+  queenDeliverRadius: 1.5
+  mulchHealAmount: 10
+  evalTickSeconds: 1
 --- !u!136 &4582724552445833020
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -214,7 +223,7 @@ PrefabInstance:
         type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: ca50eeccd0ef34f189e5f6a597c6d2f8, type: 2}
+      objectReference: {fileID: 2100000, guid: 9c66c68b20271480983043735a06c722, type: 2}
     - target: {fileID: 919132149155446097, guid: 33e8c776c5f954e6ca4c966970cac403,
         type: 3}
       propertyPath: m_Name

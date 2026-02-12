@@ -3,16 +3,22 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace Antymology.Terrain
 {
     public class WorldManager : Singleton<WorldManager>
-        {
-    public int WorldSizeX => Blocks.GetLength(0);
-    public int WorldSizeY => Blocks.GetLength(1);
-    public int WorldSizeZ => Blocks.GetLength(2);
+    {
+        public int WorldSizeX => Blocks.GetLength(0);
+        public int WorldSizeY => Blocks.GetLength(1);
+        public int WorldSizeZ => Blocks.GetLength(2);
+        // public Transform QueenTransform { get; private set; }
+        public QueenAnt Queen { get; private set; }
+
 
         #region Fields
+        private readonly HashSet<Vector3Int> occupied = new HashSet<Vector3Int>();
+        private readonly HashSet<Vector3Int> claimedMulch = new HashSet<Vector3Int>();
 
         /// <summary>
         /// The prefab containing the ant.
@@ -23,7 +29,7 @@ namespace Antymology.Terrain
         /// </summary>
         public GameObject workerAntSpawnerPrefab;
 
-       /// <summary>
+        /// <summary>
         /// The prefab containing the ant.
         /// </summary>
         public GameObject queenAntPrefab;
@@ -98,17 +104,17 @@ namespace Antymology.Terrain
         /// <summary>
         /// Returns the geometric center of the world.
         /// </summary>
-    private Vector3 GetWorldCenterOnSurface()
-    {
-        int x = Blocks.GetLength(0) / 2;
-        int z = Blocks.GetLength(2) / 2;
+        private Vector3 GetWorldCenterOnSurface()
+        {
+            int x = Blocks.GetLength(0) / 2;
+            int z = Blocks.GetLength(2) / 2;
 
-        int y = Blocks.GetLength(1) - 1;
-        while (y > 0 && GetBlock(x, y, z) is AirBlock)
-            y--;
+            int y = Blocks.GetLength(1) - 1;
+            while (y > 0 && GetBlock(x, y, z) is AirBlock)
+                y--;
 
-        return new Vector3(x, y, z);
-            }
+            return new Vector3(x, y, z);
+        }
         private Vector3 PlaceOnGround(GameObject prefab, Vector3 approxXZ)
         {
             Vector3 rayStart = new Vector3(approxXZ.x, WorldSizeY + 10f, approxXZ.z);
@@ -150,6 +156,8 @@ namespace Antymology.Terrain
             Vector3 queenPos = PlaceOnGround(queenAntPrefab, centerXZ);
             GameObject queenGO = Instantiate(queenAntPrefab, queenPos, Quaternion.identity);
             QueenTransform = queenGO.transform;
+            Queen = queenGO.GetComponent<QueenAnt>();
+
             Debug.Log("Queen POS: " + queenGO.transform.position);
 
 
@@ -450,7 +458,7 @@ namespace Antymology.Terrain
             Chunks[updateX, updateY, updateZ].updateNeeded = true;
 
             // Also flag all 6 neighbours for update as well
-            if(updateX - 1 >= 0)
+            if (updateX - 1 >= 0)
                 Chunks[updateX - 1, updateY, updateZ].updateNeeded = true;
             if (updateX + 1 < Chunks.GetLength(0))
                 Chunks[updateX + 1, updateY, updateZ].updateNeeded = true;
@@ -482,6 +490,8 @@ namespace Antymology.Terrain
                     for (int y = 0; y < Chunks.GetLength(1); y++)
                     {
                         GameObject temp = new GameObject();
+                        temp.name = $"Chunk_{x}_{y}_{z}";
+                        temp.layer = LayerMask.NameToLayer("Ground");
                         temp.transform.parent = chunkObg.transform;
                         temp.transform.position = new Vector3
                         (
@@ -498,6 +508,32 @@ namespace Antymology.Terrain
                         Chunks[x, y, z] = chunkScript;
                     }
         }
+
+        public bool TryReserveTile(Vector3Int tile)
+{
+    // If already occupied, fail
+    if (occupied.Contains(tile)) return false;
+    occupied.Add(tile);
+    return true;
+}
+
+public void ReleaseTile(Vector3Int tile)
+{
+    occupied.Remove(tile);
+}
+
+public bool TryClaimMulch(Vector3Int tile)
+{
+    // Only allow one ant to claim this tile
+    if (claimedMulch.Contains(tile)) return false;
+    claimedMulch.Add(tile);
+    return true;
+}
+
+public void ReleaseMulchClaim(Vector3Int tile)
+{
+    claimedMulch.Remove(tile);
+}
 
         #endregion
 

@@ -46,6 +46,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   workerAntPrefab: {fileID: 9169714756267827259, guid: c0a02519b93fe4a9b92b74605b9137b4,
     type: 3}
-  numberToSpawn: 1
+  numberToSpawn: 0
   spawnRadius: 3
   groundToSurface: 1

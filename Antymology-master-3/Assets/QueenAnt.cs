@@ -1,64 +1,86 @@
 using UnityEngine;
-using Antymology.Terrain; // so we can access WorldManager and blocks
+using Antymology.Terrain;
 
 public class QueenAnt : MonoBehaviour
 {
     [Header("Placement")]
     public float placeIntervalSeconds = 0.25f;
     public int forwardDistanceBlocks = 1;
-    public int maxStackSearch = 50; // how high we’re willing to stack
+    public int maxStackSearch = 50;
 
-    private float _nextPlaceTime;
+    [Header("Health")]
+    public float maxHealth = 300f;
+    public float health = 100f;
+
+    float _nextPlaceTime;
+
+    float NestCost => maxHealth / 3f;
+    float BuildThreshold => maxHealth * (2f / 3f);
+
+    void Start()
+    {
+        health = Mathf.Clamp(health, 0f, maxHealth);
+    }
 
     void Update()
     {
+        Debug.Log("Queen Health: " + health);
         if (Time.time >= _nextPlaceTime)
         {
             _nextPlaceTime = Time.time + placeIntervalSeconds;
-            PlaceNestBlockInFront();
+            TryPlaceNestBlockInFront();
         }
     }
 
-    private void PlaceNestBlockInFront()
+    // Workers will call this
+    public bool TryReceiveHealth(float amount)
     {
-        if (WorldManager.Instance == null)
-            return;
+        if (amount <= 0f) return false;
+        if (health >= maxHealth) return false;
 
-        // 1) Pick the X/Z "in front" of the queen
+        float accepted = Mathf.Min(amount, maxHealth - health);
+        health += accepted;
+        return accepted > 0f;
+    }
+
+    private void TryPlaceNestBlockInFront()
+    {
+        if (WorldManager.Instance == null) return;
+
+        // Must have enough health to pay for the block
+        if (health < BuildThreshold) return;
+
+
+
         Vector3 inFront = transform.position + transform.forward * forwardDistanceBlocks;
 
-        int x = Mathf.RoundToInt(inFront.x);
-        int z = Mathf.RoundToInt(inFront.z);
+        int x = Mathf.FloorToInt(inFront.x);
+        int z = Mathf.FloorToInt(inFront.z);
 
-        // keep it inside the world (avoid borders)
         x = Mathf.Clamp(x, 1, WorldManager.Instance.WorldSizeX - 2);
         z = Mathf.Clamp(z, 1, WorldManager.Instance.WorldSizeZ - 2);
 
-        // 2) Find first empty spot in that column, starting near queen height
-        int startY = Mathf.Clamp(Mathf.RoundToInt(transform.position.y), 1, WorldManager.Instance.WorldSizeY - 2);
+        int startY = Mathf.Clamp(Mathf.FloorToInt(transform.position.y), 1, WorldManager.Instance.WorldSizeY - 2);
 
         int y = FindFirstAirY(x, startY, z, maxStackSearch);
-        if (y == -1)
-            return; // nowhere to place
-
-        // 3) Place the block
-        // Choose whatever block you want as "nest" (MulchBlock is a safe example)
+        if (y == -1) return;
+        // Place nest
         WorldManager.Instance.SetBlock(x, y, z, new NestBlock());
+        Debug.Log("Added Block");
+        // Pay health cost
+        health -= NestCost;
+        if (health < 0f) health = 0f;
     }
 
     private int FindFirstAirY(int x, int startY, int z, int searchUpLimit)
     {
         int y = startY;
-
-        // If we are inside solid, move up until we hit air
         int tries = 0;
+
         while (tries < searchUpLimit && y < WorldManager.Instance.WorldSizeY - 1)
         {
             AbstractBlock b = WorldManager.Instance.GetBlock(x, y, z);
-
-            // "AirBlock" check without needing namespace headaches:
-            if (b is AirBlock)
-                return y;
+            if (b is AirBlock) return y;
 
             y++;
             tries++;
