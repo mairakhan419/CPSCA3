@@ -4,11 +4,13 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Collections.Generic;
+using SysRandom = System.Random;
 
 namespace Antymology.Terrain
 {
     public class WorldManager : Singleton<WorldManager>
     {
+       private static readonly SysRandom rng = new SysRandom();
         public int WorldSizeX => Blocks.GetLength(0);
         public int WorldSizeY => Blocks.GetLength(1);
         public int WorldSizeZ => Blocks.GetLength(2);
@@ -338,7 +340,15 @@ namespace Antymology.Terrain
                         }
                         else if (y <= stoneCeiling + grassHeight + foodHeight)
                         {
-                            Blocks[x, y, z] = new MulchBlock();
+                            // Blocks[x, y, z] = new MulchBlock();
+                            // double mulchChance = 0.01; // 25%
+                            double mulchChance = 1; // 25%
+
+                            if (rng.NextDouble() < mulchChance)
+                                Blocks[x, y, z] = new MulchBlock();
+                            else
+
+                                Blocks[x, y, z] = new AirBlock(); // or keep whatever default is
                         }
                         else
                         {

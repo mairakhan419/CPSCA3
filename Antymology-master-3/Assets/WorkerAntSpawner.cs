@@ -13,6 +13,13 @@ public class WorkerAntSpawner : MonoBehaviour
     [Header("Grounding")]
     public bool groundToSurface = true;
 
+    [Header("Genome Random Ranges")]
+    public Vector2 moveChanceRange = new Vector2(0.25f, 1.0f);
+    public Vector2 senseRadiusRange = new Vector2(1.0f, 8.0f);
+    public Vector2 acidAvoidanceRange = new Vector2(0.0f, 1.0f);
+    public Vector2 transferAmountRange = new Vector2(5.0f, 20.0f);
+    public Vector2 diggingExplorationRange = new Vector2(0.0f, 1.0f);
+
     void Start()
     {
         SpawnWorkers();
@@ -39,30 +46,41 @@ public class WorkerAntSpawner : MonoBehaviour
             if (groundToSurface)
                 spawnPos = GroundToSurface(spawnPos);
 
-            Instantiate(workerAntPrefab, spawnPos, Quaternion.identity);
+            GameObject go = Instantiate(workerAntPrefab, spawnPos, Quaternion.identity);
+
+            // Assign unique randomized genome per ant
+            WorkerAnt ant = go.GetComponent<WorkerAnt>();
+            if (ant != null)
+            {
+                WorkerGenome g = new WorkerGenome
+                {
+                    moveChance = Random.Range(moveChanceRange.x, moveChanceRange.y),
+                    senseRadius = Random.Range(senseRadiusRange.x, senseRadiusRange.y),
+                    acidAvoidance = Random.Range(acidAvoidanceRange.x, acidAvoidanceRange.y),
+                    transferAmount = Random.Range(transferAmountRange.x, transferAmountRange.y),
+                    diggingExploration = Random.Range(diggingExplorationRange.x, diggingExplorationRange.y),
+                };
+
+                ant.SetGenome(g);
+            }
         }
     }
 
-private Vector3 GroundToSurface(Vector3 pos)
-{
-    // Raycast straight down onto the chunk mesh colliders.
-    // Start high above the world so we definitely hit something.
-    Vector3 rayStart = new Vector3(pos.x, WorldManager.Instance.WorldSizeY + 10f, pos.z);
-
-    if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 10000f))
+    private Vector3 GroundToSurface(Vector3 pos)
     {
-        float lift = 0.0f;
+        Vector3 rayStart = new Vector3(pos.x, WorldManager.Instance.WorldSizeY + 10f, pos.z);
 
-        // Use the worker prefab's collider height to place it on top of the hit surface
-        Collider c = workerAntPrefab.GetComponentInChildren<Collider>();
-        if (c != null)
-            lift = c.bounds.extents.y; // half height
+        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 10000f))
+        {
+            float lift = 0.0f;
 
-        return hit.point + Vector3.up * (lift + 0.02f); // tiny extra so it doesn't clip
+            Collider c = workerAntPrefab.GetComponentInChildren<Collider>();
+            if (c != null)
+                lift = c.bounds.extents.y;
+
+            return hit.point + Vector3.up * (lift + 0.02f);
+        }
+
+        return pos;
     }
-
-    // Fallback: if no hit, just return original
-    return pos;
-}
-
 }

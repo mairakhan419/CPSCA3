@@ -48,7 +48,9 @@ public class WorkerAnt : MonoBehaviour
     Quaternion targetRot;
     bool hasTarget;
 
-    static readonly int[] CardinalAngles = { 0, 90, 180, 270 };
+    // static readonly int[] CardinalAngles = { 0, 90, 180, 270 };
+    static readonly int[] OctileAngles = { 0, 45, 90, 135, 180, 225, 270, 315 };
+
     [Header("Health")]
     public float maxHealth = 100f;
     public float health = 100f;
@@ -73,6 +75,9 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
 
     float evalTimer;
 
+    [Header("Genome (per ant)")]
+    public WorkerGenome genome;
+    [SerializeField] private bool genomeAssigned = false;
 
     void Start()
     {
@@ -80,7 +85,8 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
         healthTimer = 0f;
 
         groundMask = LayerMask.GetMask("Ground");
-        SetRandomCardinalRotation();
+        SetRandomOctileRotation();
+
         targetRot = transform.rotation;
 
         SnapToSurfaceAtCurrentXZ();
@@ -91,50 +97,177 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
         UpdateCurrentBlockFromWorld();
         if (queen == null && WorldManager.Instance != null)
             queen = WorldManager.Instance.QueenTransform;
+        // NEW: If we are very close to the queen, look away from her immediately
+        if (queen != null && Vector3.Distance(transform.position, queen.position) < 2.0f)
+        {
+            Vector3 away = transform.position - queen.position;
+            if (away.sqrMagnitude > 0.01f)
+            {
+                float angle = Quaternion.LookRotation(away).eulerAngles.y;
+                targetRot = Quaternion.Euler(0, SnapYaw(angle), 0);
+                transform.rotation = targetRot;
+            }
+        }
+        else
+        {
+            SetRandomOctileRotation(); // Your old logic for ants spawned elsewhere
+        }
+        stepTimer = Random.Range(0f, stepInterval);
         reservedTile = CurrentBlock;
         hasReservation = WorldManager.Instance.TryReserveTile(reservedTile);
 
     }
 
-    void Update()
+void Update()
+{
+    UpdateHealthOverTime();
+    UpdateFitnessTick();
+
+    // Always rotate smoothly toward whatever targetRot currently is
+    transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, turnSpeed * Time.deltaTime);
+
+    // If we're currently walking toward a chosen target tile, keep moving toward it
+    if (hasTarget)
     {
-        UpdateHealthOverTime();
-        UpdateFitnessTick();
+        transform.position = Vector3.MoveTowards(transform.position, targetPos, moveSpeed * Time.deltaTime);
 
-        if (currentState == AntState.Returning)
+        if ((transform.position - targetPos).sqrMagnitude < 0.000001f)
         {
-            ReturnToQueen();
-            return;
-        }
+            transform.position = targetPos;
+            hasTarget = false;
 
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, turnSpeed * Time.deltaTime);
+            UpdateCurrentBlockFromWorld();
 
-        if (hasTarget)
-        {
-            transform.position = Vector3.MoveTowards(transform.position, targetPos, moveSpeed * Time.deltaTime);
-
-            if ((transform.position - targetPos).sqrMagnitude < 0.000001f)
+            // Only do mulch checks while wandering (prevents consuming mulch while returning)
+            if (currentState == AntState.Wandering)
             {
-                transform.position = targetPos;
-                hasTarget = false;
-
-                // We arrived on a new tile: detect where we actually are
-                UpdateCurrentBlockFromWorld();
                 checkBlock();
-
             }
-            return;
+            else if (currentState == AntState.Returning)
+            {
+                // If we stepped close enough to the queen, deliver and stop returning
+                CheckReachedQueen();
+            }
         }
+        return;
+    }
 
+    // Not currently moving: decide facing behavior
+    if (currentState == AntState.Returning)
+        FaceQueen_Smooth();
+    else
         TurnLeftRightOrBack_Smooth();
 
-        stepTimer += Time.deltaTime;
-        if (stepTimer >= stepInterval)
-        {
-            stepTimer = 0f;
+    // Step gating (THIS is the built-in idle time)
+    stepTimer += Time.deltaTime;
+    if (stepTimer >= stepInterval)
+    {
+        stepTimer = 0f;
+
+        // SPEED TRAIT: probability to actually take a step this tick
+        if (Random.value > genome.moveChance)
+            return;
+
+        if (currentState == AntState.Returning)
+            StepTowardQueen_SmoothTarget();
+        else
             StepForwardToSurface_SmoothTarget();
-        }
     }
+
+}
+void FaceQueen_Smooth()
+{
+    if (queen == null) return;
+
+    Vector3 toQueen = queen.position - transform.position;
+    toQueen.y = 0f;
+
+    if (toQueen.sqrMagnitude < 0.0001f) return;
+
+    targetRot = Quaternion.LookRotation(toQueen.normalized);
+}
+
+void CheckReachedQueen()
+{
+    if (queen == null) return;
+
+    Vector3 toQueen = queen.position - transform.position;
+    toQueen.y = 0f;
+
+    if (toQueen.magnitude < 1.0f) // same threshold you used before
+    {
+        TryDeliverHealthToQueen();
+        currentState = AntState.Wandering;
+    }
+}
+
+void StepTowardQueen_SmoothTarget()
+{
+    if (queen == null) return;
+
+    Vector3 toQueen = queen.position - transform.position;
+    toQueen.y = 0f;
+
+    // Already close enough? Deliver without stepping.
+    if (toQueen.magnitude < 1.0f)
+    {
+        TryDeliverHealthToQueen();
+        currentState = AntState.Wandering;
+        return;
+    }
+
+    // Choose a cardinal step that reduces distance (grid-like)
+    int stepX = 0, stepZ = 0;
+    if (Mathf.Abs(toQueen.x) > Mathf.Abs(toQueen.z))
+        stepX = toQueen.x >= 0 ? 1 : -1;
+    else
+        stepZ = toQueen.z >= 0 ? 1 : -1;
+
+    int curX = Mathf.FloorToInt(transform.position.x);
+    int curZ = Mathf.FloorToInt(transform.position.z);
+
+    int nextX = Mathf.Clamp(curX + stepX, 1, WorldManager.Instance.WorldSizeX - 2);
+    int nextZ = Mathf.Clamp(curZ + stepZ, 1, WorldManager.Instance.WorldSizeZ - 2);
+
+    // Don't step onto the nest
+    if (IsNestAtXZ(nextX, nextZ))
+    {
+        TurnBack();
+        currentState = AntState.Wandering;
+        return;
+    }
+
+    if (!TryGetTopSolidBlockY(nextX, nextZ, out int yTop))
+        return;
+
+    Vector3Int nextTile = new Vector3Int(nextX, yTop, nextZ);
+
+        // Respect tile reservation like wandering does
+        // if (!WorldManager.Instance.TryReserveTile(nextTile))
+        if (!WorldManager.Instance.TryReserveTile(nextTile) && currentState == AntState.Wandering)
+
+    {
+        TurnBack();
+        return;
+    }
+
+    if (hasReservation)
+        WorldManager.Instance.ReleaseTile(reservedTile);
+
+    reservedTile = nextTile;
+    hasReservation = true;
+
+    float foot = GetFootOffset();
+    float groundY = yTop + surfaceOffset;
+
+    // Set target position (movement will happen via hasTarget MoveTowards)
+    DoMove(new Vector3(nextX, groundY + foot, nextZ));
+
+    // Face the step direction
+    Vector3 stepDir = new Vector3(stepX, 0f, stepZ);
+    if (stepDir.sqrMagnitude > 0.0001f)
+        targetRot = Quaternion.LookRotation(stepDir);
+}
 
     // -------------------- Detection --------------------
 
@@ -196,55 +329,93 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
     }
 
     // -------------------- Movement --------------------
-
     void StepForwardToSurface_SmoothTarget()
     {
+        // 1. Calculate Step Direction
         Vector3 f = transform.forward;
-        int stepX = 0, stepZ = 0;
+        // Simple logic to snap forward vector to grid direction
+        int stepX = (f.x > 0.35f) ? 1 : (f.x < -0.35f) ? -1 : 0;
+        int stepZ = (f.z > 0.35f) ? 1 : (f.z < -0.35f) ? -1 : 0;
 
-        if (Mathf.Abs(f.x) > Mathf.Abs(f.z))
-            stepX = f.x >= 0 ? 1 : -1;
-        else
-            stepZ = f.z >= 0 ? 1 : -1;
+        if (stepX == 0 && stepZ == 0) return;
 
-        // int curX = Mathf.RoundToInt(transform.position.x);
-        // int curZ = Mathf.RoundToInt(transform.position.z);
         int curX = Mathf.FloorToInt(transform.position.x);
         int curZ = Mathf.FloorToInt(transform.position.z);
 
         int nextX = Mathf.Clamp(curX + stepX, 1, WorldManager.Instance.WorldSizeX - 2);
         int nextZ = Mathf.Clamp(curZ + stepZ, 1, WorldManager.Instance.WorldSizeZ - 2);
 
+        // 2. Check Ground (Don't walk into void)
         if (!TryGetTopSolidBlockY(nextX, nextZ, out int yTop))
-            return;
-
-        if (IsNestAtXZ(nextX, nextZ))
         {
-            TurnBack();
+            TurnRandom();
+            return;
+        }
+
+        // 3. NEST LOGIC: Allow exiting the nest, forbid re-entering
+        bool amIOnNest = IsNestAtXZ(curX, curZ);
+        if (IsNestAtXZ(nextX, nextZ) && !amIOnNest)
+        {
+            TurnRandom();
             hasTarget = false;
             return;
         }
 
+        // 4. RESERVATION & TRAFFIC LOGIC
         Vector3Int nextTile = new Vector3Int(nextX, yTop, nextZ);
-        if (!WorldManager.Instance.TryReserveTile(nextTile))
+        float distToQueen = (queen != null) ? Vector3.Distance(transform.position, queen.position) : 0f;
+        bool inSafeZone = distToQueen < 6.0f; // Slightly increased radius
+
+        if (!inSafeZone)
         {
-            TurnBack();
-            hasTarget = false;
-            return;
+            // Try to reserve the tile
+            if (!WorldManager.Instance.TryReserveTile(nextTile) && currentState == AntState.Wandering)
+            {
+                // --- FIX 2: QUEUEING LOGIC ---
+                // If the path is blocked, usually we should just WAIT for the ant in front to move.
+                // Turning immediately creates a clog.
+
+                // 80% chance to just wait (return) and try again next tick
+                if (Random.value < 0.8f) return;
+
+                // 20% chance to give up and turn (prevents getting stuck forever)
+                TurnRandom();
+                hasTarget = false;
+                return;
+            }
         }
 
+        // 5. Manage Reservation
         if (hasReservation)
             WorldManager.Instance.ReleaseTile(reservedTile);
 
-        reservedTile = nextTile;
-        hasReservation = true;
+        // Only lock the tile if we are outside the ghosting area
+        if (!inSafeZone)
+        {
+            reservedTile = nextTile;
+            hasReservation = true;
+        }
+        else
+        {
+            hasReservation = false;
+        }
 
+        // 6. Move
         float foot = GetFootOffset();
         float groundY = yTop + surfaceOffset;
-        targetPos = new Vector3(nextX + 0.5f, groundY + foot, nextZ + 0.5f);
+        targetPos = new Vector3(nextX, groundY + foot, nextZ);
+
+        DoMove(targetPos);
+    }
+    void DoMove(Vector3 pos){
+
+        targetPos = pos;
+
         hasTarget = true;
 
     }
+
+
 
     void SnapToSurfaceAtCurrentXZ()
     {
@@ -265,11 +436,12 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
 
     // -------------------- Turning --------------------
 
-    void SetRandomCardinalRotation()
+        void SetRandomOctileRotation()
     {
-        int a = CardinalAngles[Random.Range(0, CardinalAngles.Length)];
+        int a = OctileAngles[Random.Range(0, OctileAngles.Length)];
         transform.rotation = Quaternion.Euler(0f, a, 0f);
     }
+
 
     void TurnLeftRightOrBack_Smooth()
     {
@@ -279,7 +451,9 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
 
         if (Random.value > turnChance) return;
 
-        int[] delta = { -90, 90, 180 };
+        // int[] delta = { -90, 90, 180 };
+        int[] delta = { -45, 45, -90, 90, -135, 135, 180 };
+
         int d = delta[Random.Range(0, delta.Length)];
 
         float newYaw = SnapYaw(transform.eulerAngles.y + d);
@@ -287,10 +461,12 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
     }
 
     float SnapYaw(float yaw)
-    {
-        yaw = Mathf.Repeat(yaw, 360f);
-        return Mathf.Round(yaw / 90f) * 90f;
-    }
+{
+    yaw = Mathf.Repeat(yaw, 360f);
+    return Mathf.Round(yaw / 45f) * 45f;
+}
+
+
 
     float GetFootOffset()
     {
@@ -373,6 +549,7 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
 
         // Step toward queen in XZ
         Vector3 next = transform.position + dir * (moveSpeed * Time.deltaTime);
+        // Vector3.MoveTowards(transform.position, targetPos, moveSpeed * Time.deltaTime);
 
         // Clamp to world bounds (optional but recommended)
         next.x = Mathf.Clamp(next.x, 1f, WorldManager.Instance.WorldSizeX - 2f);
@@ -429,7 +606,7 @@ float carriedHealthFromMulch = 0f;    // how much “energy” this ant is carry
 
     void TurnBack()
     {
-        float newYaw = SnapYaw(transform.eulerAngles.y + 180f);
+        float newYaw = SnapYaw(transform.eulerAngles.y + 90f);
         targetRot = Quaternion.Euler(0f, newYaw, 0f);
     }
 void UpdateHealthOverTime()
@@ -537,6 +714,28 @@ void UpdateFitnessTick()
         return true;
     }
 
+    // Replace your existing TurnBack() with this:
+    void TurnRandom()
+    {
+        // Pick a random direction (left, right, or all the way back)
+        // This breaks the "infinite loop" of trying the same blocked path
+        float[] candidates = { -90f, 90f, 180f, -45f, 45f };
+        float randomAdd = candidates[Random.Range(0, candidates.Length)];
+
+        float newYaw = SnapYaw(transform.eulerAngles.y + randomAdd);
+        targetRot = Quaternion.Euler(0f, newYaw, 0f);
+    }
+public void SetGenome(WorkerGenome g)
+{
+    genome = g;
+    genomeAssigned = true;
+
+    // Optional: directly map one trait to existing variable today
+    deliverAmount = genome.transferAmount;
+
+    // Optional debug:
+    // Debug.Log($"{name} genome: moveChance={genome.moveChance:F2}, sense={genome.senseRadius:F1}, acidAvoid={genome.acidAvoidance:F2}, transfer={genome.transferAmount:F1}, digExplore={genome.diggingExploration:F2}");
+}
 
 void OnDestroy()
 {

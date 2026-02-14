@@ -103,9 +103,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   stepInterval: 0.25
-  turnInterval: 2
-  turnChance: 0.76
-  moveSpeed: 10
+  turnInterval: 25
+  turnChance: 0.9
+  moveSpeed: 50
   turnSpeed: 540
   surfaceOffset: 0.02
   groundMask:
