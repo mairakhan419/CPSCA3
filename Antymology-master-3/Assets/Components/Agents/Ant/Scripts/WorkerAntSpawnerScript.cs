@@ -101,15 +101,24 @@ public class WorkerAntSpawnerScript : MonoBehaviour
 
     void Awake()
     {
+        queen = null;
         if (queen == null)
         {
             var q = GameObject.FindWithTag("Queen");
             if (q != null) queen = q.transform;
         }
+
     }
 
 public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
 {
+        queen = null;
+        if (queen == null)
+        {
+            var q = GameObject.FindWithTag("Queen");
+            if (q != null) queen = q.transform;
+        }
+
     var ants = new List<WorkerAntScript>(genomes.Count);
 
     // SAME center logic as WorldManager used
@@ -141,7 +150,7 @@ public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
             Destroy(go);
             continue;
         }
-
+        Debug.Log("INITIALIZING: " + queen.position);
         ant.Initialize(genomes[i], queen);
         ants.Add(ant);
     }

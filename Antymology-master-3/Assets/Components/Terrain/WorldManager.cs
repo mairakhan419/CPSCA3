@@ -29,7 +29,7 @@ namespace Antymology.Terrain
         /// <summary>
         /// The prefab for creating ants.
         /// </summary>
-        public GameObject workerAntSpawnerPrefab;
+        // public GameObject workerAntSpawnerPrefab;
 
 
         /// <summary>
@@ -148,23 +148,24 @@ namespace Antymology.Terrain
                 return;
             }
 
-            if (workerAntSpawnerPrefab == null)
-            {
-                Debug.LogError("WorldManager: workerAntSpawnerPrefab not assigned.");
-                return;
-            }
+            // if (workerAntSpawnerPrefab == null)
+            // {
+            //     Debug.LogError("WorldManager: workerAntSpawnerPrefab not assigned.");
+            //     return;
+            // }
 
             Vector3 centerXZ = new Vector3(WorldSizeX / 2f, 0f, WorldSizeZ / 2f);
 
             Vector3 queenPos = PlaceOnGround(queenAntPrefab, centerXZ);
+            Debug.Log("REAL QUEEN POS: " + queenPos);
             GameObject queenGO = Instantiate(queenAntPrefab, queenPos, Quaternion.identity);
             QueenTransform = queenGO.transform;
             Queen = queenGO.GetComponent<QueenAnt>();
 
 
 
-            Vector3 spawnerPos = PlaceOnGround(workerAntSpawnerPrefab, centerXZ);
-            Instantiate(workerAntSpawnerPrefab, spawnerPos, Quaternion.identity);
+            // Vector3 spawnerPos = PlaceOnGround(workerAntSpawnerPrefab, centerXZ);
+            // Instantiate(workerAntSpawnerPrefab, spawnerPos, Quaternion.identity);
         }
 
 
@@ -315,6 +316,7 @@ namespace Antymology.Terrain
         /// </summary>
         private void GeneratePreliminaryWorld()
         {
+            Blocks[82,0,96] = new AcidicBlock();
             for (int x = 0; x < Blocks.GetLength(0); x++)
                 for (int z = 0; z < Blocks.GetLength(2); z++)
                 {

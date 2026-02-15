@@ -58,6 +58,8 @@ public class WorkerAntScript : MonoBehaviour
 
     void Awake()
     {
+        queen = null;
+
         groundMask = LayerMask.GetMask("Ground");
         health = maxHealth;
 
@@ -66,8 +68,12 @@ public class WorkerAntScript : MonoBehaviour
         if (queen == null)
         {
             GameObject q = GameObject.FindWithTag("Queen");
-            if (q != null) queen = q.transform;
+            if (q != null)
+            {
+                queen = q.transform;
+            }
         }
+
 
         rb = GetComponent<Rigidbody>();
         cap = GetComponent<CapsuleCollider>();
@@ -81,16 +87,18 @@ public class WorkerAntScript : MonoBehaviour
 
     void Update()
     {
-        Debug.Log("HEalth: " + health);
         DrainHealthOverTime();
         if (health <= 0f)
         {
             Die();
             return;
         }
+
+
         // Safety check
         if (queen == null || WorldManager.Instance == null)
             return;
+
         // Acid avoidance (highest priority steering)
         if (Genome.avoidAcid > 0f)
         {
@@ -102,7 +110,6 @@ public class WorkerAntScript : MonoBehaviour
                 FacePosition(transform.position + desired); // uses your FacePosition helper
             }
         }
-
         if (carryingFood)
         {
             FaceQueen();
@@ -115,6 +122,7 @@ public class WorkerAntScript : MonoBehaviour
 
             return; // skip wandering + pickup logic
         }
+
         // Retarget mulch periodically (keep your existing logic)
         if (!targetMulchTile.HasValue || Time.time >= nextRetargetTime)
         {
@@ -170,7 +178,7 @@ public class WorkerAntScript : MonoBehaviour
 
         // Interactions (keep)
         TryPickupMulch();
-        // TryFeedQueen();
+        TryFeedQueen();
     }
 
     public void Initialize(AntGenome genome, Transform queenRef)
@@ -186,7 +194,7 @@ public class WorkerAntScript : MonoBehaviour
         turnChanceTwoBlocks = genome.turnChanceTwoBlocks;
         pauseDuration = genome.pauseDuration;
         searchRadius = genome.searchRadius;
-        Debug.Log("Search Radius: " + searchRadius);
+
 
         queen = queenRef;
 
@@ -427,6 +435,7 @@ private bool IsAcidAt(Vector3Int t)
 private void DrainHealthOverTime()
 {
     float mult = IsStandingOnAcid() ? 2f : 1f; // assignment rule
+
     health -= healthDrainPerSecond * mult * Time.deltaTime;
     if (health < 0f) health = 0f;
 }

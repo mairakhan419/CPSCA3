@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-
+using Antymology.Terrain;   // <-- ADD THIS
 public class EvolutionManagerScript : MonoBehaviour
 {
     [Header("References")]
     public WorkerAntSpawnerScript spawner;
 
     [Header("Evolution Timing")]
-    public float evaluationSeconds = 30f;
+    public float evaluationSeconds = 20f;
 
     [Header("Population")]
-    public int populationSize = 20;
+    public int populationSize = 2;
 
     [Header("Mutation")]
     [Range(0f, 1f)] public float mutationRate = 0.15f;
@@ -25,22 +25,30 @@ public class EvolutionManagerScript : MonoBehaviour
 
     private System.Random rng = new System.Random(1234);
 
-    void Start()
-    {
-        if (spawner == null) spawner = FindFirstObjectByType<WorkerAntSpawnerScript>();
+ private System.Collections.IEnumerator Start()
+{
+    while (WorldManager.Instance == null)
+        yield return null;
 
-        // First generation random
-        genomes = new List<AntGenome>(populationSize);
-        for (int i = 0; i < populationSize; i++)
-            genomes.Add(AntGenome.RandomGenome()); // uses UnityEngine.Random in your struct
+    // wait for chunk meshes/colliders to be generated
+    yield return new WaitForEndOfFrame();
+    yield return new WaitForEndOfFrame();
 
-        SpawnNewGeneration();
-    }
+    if (spawner == null) spawner = FindFirstObjectByType<WorkerAntSpawnerScript>();
+
+    genomes = new List<AntGenome>(populationSize);
+    for (int i = 0; i < populationSize; i++)
+        genomes.Add(AntGenome.RandomGenome());
+
+    SpawnNewGeneration();
+}
 
     void Update()
     {
+        // Debug.Log("Gen Time: " + generationEndTime + "time: " +Time.time);
         if (Time.time >= generationEndTime)
         {
+            Debug.Log($"Generation {generationIndex} ended. Evaluating and breeding next generation...");
             EvaluateAndBreedTopTwo();
             SpawnNewGeneration();
         }
@@ -50,7 +58,12 @@ public class EvolutionManagerScript : MonoBehaviour
     {
         // destroy previous ants
         foreach (var ant in liveAnts)
-            if (ant != null) Destroy(ant.gameObject);
+            if (ant != null)
+            {
+                Debug.Log("Destroy");
+                Destroy(ant.gameObject);
+            }
+        ;
         liveAnts.Clear();
 
         // spawn new ants
