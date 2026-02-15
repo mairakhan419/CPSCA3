@@ -31,6 +31,7 @@ namespace Antymology.Terrain
         /// </summary>
         public GameObject workerAntSpawnerPrefab;
 
+
         /// <summary>
         /// The prefab containing the ant.
         /// </summary>
@@ -160,7 +161,6 @@ namespace Antymology.Terrain
             QueenTransform = queenGO.transform;
             Queen = queenGO.GetComponent<QueenAnt>();
 
-            Debug.Log("Queen POS: " + queenGO.transform.position);
 
 
             Vector3 spawnerPos = PlaceOnGround(workerAntSpawnerPrefab, centerXZ);
@@ -341,8 +341,8 @@ namespace Antymology.Terrain
                         else if (y <= stoneCeiling + grassHeight + foodHeight)
                         {
                             // Blocks[x, y, z] = new MulchBlock();
-                            // double mulchChance = 0.01; // 25%
-                            double mulchChance = 1; // 25%
+                            double mulchChance = 0.00; // 25%
+                            // double mulchChance = 1; // 25%
 
                             if (rng.NextDouble() < mulchChance)
                                 Blocks[x, y, z] = new MulchBlock();

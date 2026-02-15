@@ -9,7 +9,7 @@ namespace Antymology.UI
 {
     public class UITerrainEditor : Singleton<UITerrainEditor>
     {
-        private AbstractBlock currentBlockType = new GrassBlock();
+        private AbstractBlock currentBlockType = new AcidicBlock();
 
         /// <summary>
         /// Replaces the block at the cursor with the current block type.
@@ -70,9 +70,11 @@ namespace Antymology.UI
 
         void SetBlockAt(Vector3 position)
         {
+
             int x = Mathf.RoundToInt(position.x);
             int y = Mathf.RoundToInt(position.y);
             int z = Mathf.RoundToInt(position.z);
+             Debug.Log($"Block placed at coords: ({x}, {y}, {z})");
             SetBlockAt(x, y, z);
         }
 

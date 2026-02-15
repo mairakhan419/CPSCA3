@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &3677772588047690100
+--- !u!1 &5390101304756442485
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,8 +8,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3876162209025963818}
-  - component: {fileID: 7761333829110731828}
+  - component: {fileID: 5318154831437041645}
+  - component: {fileID: 6187369949874821340}
   m_Layer: 0
   m_Name: WorkerAntSpawner
   m_TagString: Untagged
@@ -17,35 +17,35 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3876162209025963818
+--- !u!4 &5318154831437041645
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3677772588047690100}
+  m_GameObject: {fileID: 5390101304756442485}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 81.80804, y: 0, z: 95.23698}
+  m_LocalPosition: {x: 78.89352, y: -0, z: 91.60921}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7761333829110731828
+--- !u!114 &6187369949874821340
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3677772588047690100}
+  m_GameObject: {fileID: 5390101304756442485}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 016e3264451c04394a5bda91ac3a24f3, type: 3}
+  m_Script: {fileID: 11500000, guid: a3c99073ffc57429495ecfa848edaedc, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: '::'
+  m_EditorClassIdentifier: Assembly-CSharp::WorkerAntSpawnerScript
   workerAntPrefab: {fileID: 9169714756267827259, guid: c0a02519b93fe4a9b92b74605b9137b4,
     type: 3}
-  numberToSpawn: 300
+  numberToSpawn: 1
   spawnRadius: 3
   groundToSurface: 1

@@ -65,11 +65,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4530932826033969840}
-  - component: {fileID: 3585545240026165899}
-  - component: {fileID: 5990324593885193867}
-  - component: {fileID: 659346158065566750}
+  - component: {fileID: -6072281791454938502}
+  - component: {fileID: 4582724552445833020}
   m_Layer: 0
-  m_Name: WorkerAnt
+  m_Name: WorkerAnt1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -91,7 +90,7 @@ Transform:
   - {fileID: 1677226064757813953}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3585545240026165899
+--- !u!114 &-6072281791454938502
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -100,61 +99,38 @@ MonoBehaviour:
   m_GameObject: {fileID: 9169714756267827259}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f7be356fde83e4bd3abccd66256d3de7, type: 3}
+  m_Script: {fileID: 11500000, guid: 8830d1ba090d647ad9dff2c89c930b42, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::WorkerAntScript
-  queen: {fileID: 4530932826033969840, guid: 8b7072c670b824312ab764a890b26b59, type: 3}
-  foodTag: Food
-  moveSpeed: 2
-  turnSpeed: 180
-  searchRadius: 6
-  retargetSeconds: 0.5
-  stepHeight: 1
-  stepCheckDist: 0.5
-  stepUpAmount: 0.25
-  stepForwardAmount: 0.1
+  m_EditorClassIdentifier: '::'
+  stepInterval: 0.25
+  turnInterval: 25
+  turnChance: 0.9
+  moveSpeed: 50
+  turnSpeed: 540
+  surfaceOffset: 0.02
   groundMask:
     serializedVersion: 2
-    m_Bits: 0
-  changeDirInterval: 3
-  pauseDuration: 0.25
-  turnStepDegrees: 45
-  turnChance: 0.35
---- !u!54 &5990324593885193867
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9169714756267827259}
-  serializedVersion: 5
-  m_Mass: 1
-  m_LinearDamping: 0
-  m_AngularDamping: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
-  m_Interpolate: 0
-  m_Constraints: 80
-  m_CollisionDetection: 0
---- !u!136 &659346158065566750
+    m_Bits: 4294967295
+  CurrentBlock: {x: 0, y: 0, z: 0}
+  CurrentGroundY: 0
+  currentState: 0
+  maxHealth: 100
+  health: 100
+  healthTickSeconds: 10
+  healthLossPerTick: 10
+  fitness: 0
+  deliverAmount: 10
+  queenDeliverRadius: 1.5
+  mulchHealAmount: 10
+  evalTickSeconds: 1
+--- !u!136 &4582724552445833020
 CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 9169714756267827259}
-  m_Material: {fileID: 13400000, guid: 4a781abd4b866474e8216924013e3ac8, type: 2}
+  m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -166,10 +142,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.37484872
-  m_Height: 0.74969745
-  m_Direction: 0
-  m_Center: {x: 0, y: 0.3, z: 0.15864766}
+  m_Radius: 0.5488303
+  m_Height: 0.27
+  m_Direction: 1
+  m_Center: {x: 0, y: 0.36, z: 0.09512496}
 --- !u!1001 &9181477347997707862
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -1507,10 +1507,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4530932826033969840}
-  - component: {fileID: 1398876648423324509}
+  - component: {fileID: -6309640422163848700}
   m_Layer: 0
   m_Name: QueenAnt
-  m_TagString: Untagged
+  m_TagString: Queen
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1531,7 +1531,7 @@ Transform:
   - {fileID: 8710402024582121917}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1398876648423324509
+--- !u!114 &-6309640422163848700
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1540,11 +1540,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 9169714756267827259}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0bf187894fcb24c8899a0fe50a5b8a21, type: 3}
+  m_Script: {fileID: 11500000, guid: a3c99073ffc57429495ecfa848edaedc, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: '::'
-  placeIntervalSeconds: 0.25
-  forwardDistanceBlocks: 1
-  maxStackSearch: 50
-  maxHealth: 300
-  health: 100
+  m_EditorClassIdentifier: Assembly-CSharp::WorkerAntSpawnerScript
+  workerAntPrefab: {fileID: 0}
+  numberToSpawn: 10
+  spawnRadius: 3
+  groundToSurface: 1
