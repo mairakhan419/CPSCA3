@@ -15,7 +15,7 @@ namespace Antymology.Terrain
         public int WorldSizeY => Blocks.GetLength(1);
         public int WorldSizeZ => Blocks.GetLength(2);
         // public Transform QueenTransform { get; private set; }
-        public QueenAnt Queen { get; private set; }
+        public QueenAntScript Queen { get; private set; }
 
 
         #region Fields
@@ -162,7 +162,7 @@ namespace Antymology.Terrain
             Debug.Log("REAL QUEEN POS: " + queenPos);
             GameObject queenGO = Instantiate(queenAntPrefab, queenPos, Quaternion.identity);
             QueenTransform = queenGO.transform;
-            Queen = queenGO.GetComponent<QueenAnt>();
+            // Queen = queenGO.GetComponent<QueenAnt>();
 
 
 
@@ -343,21 +343,30 @@ namespace Antymology.Terrain
                             Blocks[x, y, z] = new GrassBlock();
                         }
                         else if (y <= stoneCeiling + grassHeight + foodHeight)
-                        {
-                            // Blocks[x, y, z] = new MulchBlock();
-                            double mulchChance = 0.15; // 25%
-                            // double mulchChance = 1; // 25%
+                            {
+                                double mulchChance = 0.5;
 
-                            if (rng.NextDouble() < mulchChance)
-                                Blocks[x, y, z] = new MulchBlock();
-                            else
+                                // 1. Get the block directly underneath the current position
+                                AbstractBlock blockUnderneath = Blocks[x, y - 1, z];
 
-                                Blocks[x, y, z] = new AirBlock(); // or keep whatever default is
-                        }
+                                // 2. Only attempt to spawn mulch if the block below is NOT Air and NOT Acid
+                                // (You can refine this to specifically "is GrassBlock" if you prefer)
+                                bool isGroundBelow = blockUnderneath != null && !(blockUnderneath is AirBlock) && !(blockUnderneath is AcidicBlock);
+
+                                if (isGroundBelow && rng.NextDouble() < mulchChance)
+                                {
+                                    Blocks[x, y, z] = new MulchBlock();
+                                }
+                                else
+                                {
+                                    Blocks[x, y, z] = new AirBlock();
+                                }
+                            }
+
                         else
-                        {
-                            Blocks[x, y, z] = new AirBlock();
-                        }
+                            {
+                                Blocks[x, y, z] = new AirBlock();
+                            }
                         if
                         (
                             x == 0 ||

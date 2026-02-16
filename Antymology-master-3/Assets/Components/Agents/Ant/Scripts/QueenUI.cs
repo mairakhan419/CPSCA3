@@ -73,9 +73,9 @@ public class QueenUI : MonoBehaviour
                     "Averages\n" +
                     $"MoveSpeed: {evo.AvgMoveSpeed:0.00}\n" +
                     $"TurnChance: {evo.AvgTurnChance:0.00}\n" +
-                    $"Pause: {evo.AvgPauseDuration:0.00}\n" +
+                    // $"Pause: {evo.AvgPauseDuration:0.00}\n" +
                     $"SearchRadius: {evo.AvgSearchRadius:0.00}\n" +
-                    $"Turn2Block: {evo.AvgTurnChanceTwoBlocks:0.00}\n" +
+                    // $"Turn2Block: {evo.AvgTurnChanceTwoBlocks:0.00}\n" +
                     $"AvoidAcid: {evo.AvgAvoidAcid:0.00}\n" +
                     $"AcidSenseRadius: {evo.AvgAcidSenseRadius:0.00}\n" +
                     $"DigProb: {evo.AvgDigProbability:0.00}";

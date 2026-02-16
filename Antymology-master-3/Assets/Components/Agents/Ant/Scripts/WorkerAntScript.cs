@@ -73,8 +73,16 @@ public class WorkerAntScript : MonoBehaviour
 
     private float stuckDeadline;
     private float lastTargetDist = float.PositiveInfinity;
+    private float forcedTurnUntilTime = 0f;
 
+    private bool blockedByNestThisTick = false;
 
+    [Header("Nest Avoidance")]
+    public float nestAvoidStrength = 1.0f;     // how strongly we steer away (0..1 recommended)
+    public int nestSenseRadius = 2;            // in blocks
+    public float nestBrakeDistance = 0.8f;     // if nest is this close in front, don't move forward this tick
+
+    private bool brakeForNestThisFixedTick = false;
 
 
     void Awake()
@@ -120,30 +128,67 @@ public class WorkerAntScript : MonoBehaviour
         // Safety check
         if (queen == null || WorldManager.Instance == null)
             return;
+        // Prevent steering from overriding forced wall turns
+        bool allowSteering = Time.time >= forcedTurnUntilTime;
+
+
+
 
         // Acid avoidance (highest priority steering)
-        if (Genome.avoidAcid > 0f)
+        if (allowSteering)
         {
-            Vector3 away = ComputeAcidAvoidanceVector();
-            if (away != Vector3.zero)
+            // Acid avoidance
+            if (Genome.avoidAcid > 0f)
             {
-                // Blend current forward with away vector based on genome strength
-                Vector3 desired = Vector3.Slerp(transform.forward, away, Genome.avoidAcid);
-                FacePosition(transform.position + desired); // uses your FacePosition helper
+                Vector3 away = ComputeAcidAvoidanceVector();
+                if (away != Vector3.zero)
+                {
+                    Vector3 desired = Vector3.Slerp(transform.forward, away, Genome.avoidAcid);
+                    FacePosition(transform.position + desired);
+                }
+            }
+
+            // Nest avoidance
+            if (nestAvoidStrength > 0f)
+            {
+                Vector3 awayNest = ComputeNestAvoidanceVector();
+                if (awayNest != Vector3.zero)
+                {
+                    Vector3 desired = Vector3.Slerp(transform.forward, awayNest, nestAvoidStrength);
+                    FacePosition(transform.position + desired);
+                }
             }
         }
-        if (carryingFood)
-        {
-            FaceQueen();
 
-            // still allow interactions (feeding queen)
-            TryFeedQueen();
 
-            // optional: stop retargeting mulch while carrying
-            targetMulchTile = null;
+if (carryingFood)
+{
+    Vector3 toQueen = (queen.position - transform.position);
+    toQueen.y = 0f;
 
-            return; // skip wandering + pickup logic
-        }
+    Vector3 steer = toQueen.normalized;
+
+    // add avoidance while carrying
+    if (Genome.avoidAcid > 0f)
+    {
+        Vector3 awayAcid = ComputeAcidAvoidanceVector();
+        if (awayAcid != Vector3.zero) steer += awayAcid * Genome.avoidAcid;
+    }
+
+    if (nestAvoidStrength > 0f)
+    {
+        Vector3 awayNest = ComputeNestAvoidanceVector();
+        if (awayNest != Vector3.zero) steer += awayNest * nestAvoidStrength;
+    }
+
+    if (steer.sqrMagnitude > 0.0001f)
+        FacePosition(transform.position + steer); // smooth turn, doesn't hard-snap
+
+    TryFeedQueen();
+    targetMulchTile = null;
+    return;
+}
+
 
         // Retarget mulch periodically (keep your existing logic)
         // Acquire / maintain mulch target
@@ -213,12 +258,12 @@ public class WorkerAntScript : MonoBehaviour
             {
 
                 // pick a random multiple of 45 degrees (-180..180)
-                int steps = Random.Range(-4, 5); // inclusive -4..4
+                int stps = Random.Range(-4, 5); // inclusive -4..4
 
                 // optional: avoid 0-degree "turn"
-                if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
+                if (stps == 0) stps = (Random.value < 0.5f) ? -1 : 1;
 
-                queuedTurnDegrees = steps * turnStepDegrees;
+                queuedTurnDegrees = stps * turnStepDegrees;
                 hasQueuedTurn = true;
             }
             else
@@ -237,6 +282,8 @@ public class WorkerAntScript : MonoBehaviour
             transform.Rotate(0f, queuedTurnDegrees, 0f);
             hasQueuedTurn = false;
         }
+
+
 
         // Interactions (keep)
         TryPickupMulch();
@@ -284,16 +331,71 @@ public class WorkerAntScript : MonoBehaviour
     {
         if (rb == null || cap == null) return;
 
+        // Reset nest brake flag every physics tick
+        brakeForNestThisFixedTick = false;
+
+        // -------------------------------------------------
+        // 1) VERY CLOSE NEST CHECK (front brake + forced turn)
+        // -------------------------------------------------
+        Vector3 origin = transform.position + Vector3.up * 0.25f;
+
+        if (Physics.Raycast(origin, transform.forward, out RaycastHit hit, nestBrakeDistance, groundMask))
+        {
+            var block = GetBlockFromHit(hit);
+
+            if (block is NestBlock)
+            {
+                brakeForNestThisFixedTick = true;
+
+                // Rotate away on cooldown so we don't spin every tick
+                if (Time.time >= nextAllowedTwoBlockTurnTime)
+                {
+                    nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
+
+                    int steps = Random.Range(-4, 5);
+                    if (steps == 0)
+                        steps = (Random.value < 0.5f) ? -1 : 1;
+
+                    // Use Rigidbody rotation since movement is physics-based
+                    rb.MoveRotation(
+                        Quaternion.Euler(0f, steps * turnStepDegrees, 0f) * rb.rotation
+                    );
+
+                    // Brief pause so it doesn't immediately push back in
+                    pauseUntilTime = Time.time + 0.10f;
+
+                    // Prevent Update steering from overriding this turn
+                    forcedTurnUntilTime = Time.time + 0.15f;
+                }
+            }
+        }
+
+        // -------------------------------------------------
+        // 2) STEP UP / WALL HANDLING
+        // -------------------------------------------------
         TryStepUp();
 
-        // If we're still pausing, don't move forward
+        // -------------------------------------------------
+        // 3) IF NEST IS BLOCKING, DO NOT MOVE FORWARD
+        // -------------------------------------------------
+        if (brakeForNestThisFixedTick)
+            return;
+
+        // -------------------------------------------------
+        // 4) RESPECT PAUSE WINDOWS
+        // -------------------------------------------------
         if (Time.time < pauseUntilTime)
             return;
 
-        // Move forward
-        Vector3 forwardMove = transform.forward * moveSpeed * Time.fixedDeltaTime;
+        // -------------------------------------------------
+        // 5) NORMAL FORWARD MOVEMENT
+        // -------------------------------------------------
+        Vector3 forwardMove =
+            transform.forward * moveSpeed * Time.fixedDeltaTime;
+
         rb.MovePosition(rb.position + forwardMove);
     }
+
 
     private void TryPickupMulch()
     {
@@ -409,6 +511,46 @@ public class WorkerAntScript : MonoBehaviour
         return best;
     }
 
+    // Put these helpers anywhere in WorkerAntScript (class scope)
+    private Vector3Int WorldToTile(Vector3 p)
+    {
+        // Hit points will be on the surface; nudge slightly inward so we pick the block we struck.
+        // (If your chunk/world origin is offset, adjust here.)
+        return new Vector3Int(
+            Mathf.FloorToInt(p.x),
+            Mathf.FloorToInt(p.y),
+            Mathf.FloorToInt(p.z)
+        );
+    }
+    private AbstractBlock GetBlockFromHit(RaycastHit hit)
+    {
+        if (WorldManager.Instance == null) return null;
+
+        // Nudge inside the hit surface so we choose the block we struck
+        Vector3 inside = hit.point - hit.normal * 0.01f;
+
+        Vector3Int t = new Vector3Int(
+            Mathf.FloorToInt(inside.x),
+            Mathf.FloorToInt(inside.y),
+            Mathf.FloorToInt(inside.z)
+        );
+
+        return WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+    }
+
+    private void LogHitBlock(string label, RaycastHit hit)
+    {
+        if (WorldManager.Instance == null) return;
+
+        // Move a tiny bit back along the ray direction so we land inside the collider/block we hit
+        Vector3 inside = hit.point - hit.normal * 0.01f;
+
+        Vector3Int t = WorldToTile(inside);
+        var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+
+        Debug.Log($"{label} hit {b?.GetType().Name ?? "null"} at tile {t}, hitPoint {hit.point}");
+    }
+
     void TryStepUp()
     {
         if (rb == null || cap == null)
@@ -424,8 +566,12 @@ public class WorkerAntScript : MonoBehaviour
         Vector3 upperOrigin = lowerOrigin + Vector3.up * stepHeight;
         // Debug.DrawRay(lowerOrigin, transform.forward * stepCheckDist, Color.red);
         // Debug.DrawRay(upperOrigin, transform.forward * stepCheckDist, Color.blue);
-        bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, stepCheckDist, groundMask);
-        bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, stepCheckDist, groundMask);
+        // bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, stepCheckDist, groundMask);
+        // bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, stepCheckDist, groundMask);
+        bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, out RaycastHit lowerHit, stepCheckDist, groundMask);
+        bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, out RaycastHit upperHit, stepCheckDist, groundMask);
+
+
 
         // 1-block step → climbable
         if (hitLower && !hitUpper)
@@ -437,47 +583,47 @@ public class WorkerAntScript : MonoBehaviour
             rb.MovePosition(rb.position + step);
             return;
         }
-    if (hitLower && hitUpper)
-    {
-        // only allow a turn occasionally, not every physics tick
-        if (Time.time < nextAllowedTwoBlockTurnTime)
-            return;
+        if (hitLower && hitUpper)
+        {
+            var lowerBlock = GetBlockFromHit(lowerHit);
 
-        nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
+            // Nest wall handling
+            if (lowerBlock is NestBlock)
+            {
+                blockedByNestThisTick = true;
+                // Still blocked by nest; don't try to step forward into it
+                if (Time.time < nextAllowedTwoBlockTurnTime)
+                    return;
 
-        // if (Random.value <= turnChanceTwoBlocks)
-        // {
-            // Debug.Log("Rotate (2-block)");
+                nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
+                forcedTurnUntilTime = Time.time + 0.15f; // stop Update() from snapping rotation back
+
+                int stps = Random.Range(-4, 5);
+                if (stps == 0) stps = (Random.value < 0.5f) ? -1 : 1;
+
+                // If you have rb available, prefer this:
+                rb.MoveRotation(Quaternion.Euler(0f, stps * turnStepDegrees, 0f) * rb.rotation);
+                // Otherwise:
+                // transform.Rotate(0f, stps * turnStepDegrees, 0f);
+
+                Debug.Log($"NEST TURN: {stps * turnStepDegrees} at t={Time.time}");
+                return;
+            }
+
+            // Non-nest 2-block wall (your normal logic)...
+            if (Time.time < nextAllowedTwoBlockTurnTime)
+                return;
+
+            nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
 
             int steps = Random.Range(-4, 5);
             if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
-            transform.Rotate(0f, steps * turnStepDegrees, 0f);
-        // }
-    }
 
-        // if (hitLower && hitUpper)
-        // {
-        //     if (!wasBlockedByTwoBlock)
-        //     {
-        //         wasBlockedByTwoBlock = true;
+            rb.MoveRotation(Quaternion.Euler(0f, steps * turnStepDegrees, 0f) * rb.rotation);
+            return;
+        }
 
-        //         if (Random.value <= turnChanceTwoBlocks)
-        //         {
-        //             // Debug.Log("Rotate (2-block first contact)");
 
-        //             int steps = Random.Range(-4, 5);
-        //             if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
-        //             transform.Rotate(0f, steps * turnStepDegrees, 0f);
-        //         }
-        //     }
-
-        //     return;
-        // }
-        // else
-        // {
-        //     // reset latch once we're not blocked anymore
-        //     wasBlockedByTwoBlock = false;
-        // }
 
 
 
@@ -574,6 +720,42 @@ private void DrainHealthOverTime()
     health -= healthDrainPerSecond * mult * Time.deltaTime;
     if (health < 0f) health = 0f;
 }
+    private bool IsNestAt(Vector3Int t)
+    {
+        var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+        return b is NestBlock;
+    }
+
+
+    // Steering vector away from nearby nest blocks
+    private Vector3 ComputeNestAvoidanceVector()
+    {
+        int r = Mathf.Max(1, nestSenseRadius);
+        Vector3Int c = CurrentTile();
+
+        Vector3 away = Vector3.zero;
+        int count = 0;
+
+        for (int dx = -r; dx <= r; dx++)
+            for (int dz = -r; dz <= r; dz++)
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    Vector3Int t = new Vector3Int(c.x + dx, c.y + dy, c.z + dz);
+                    if (!IsNestAt(t)) continue;
+
+                    Vector3 diff = (Vector3)c - (Vector3)t;
+                    float d2 = diff.sqrMagnitude + 0.001f;
+
+                    away += diff / d2;
+                    count++;
+                }
+
+        if (count == 0) return Vector3.zero;
+
+        away.y = 0f;
+        return away.normalized;
+    }
+
 
 private void Die()
 {

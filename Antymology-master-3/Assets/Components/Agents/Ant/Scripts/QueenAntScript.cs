@@ -71,7 +71,6 @@ public class QueenAntScript : MonoBehaviour
         Vector3Int pos = new Vector3Int(x, y, z);
         WorldManager.Instance.SetBlock(x, y, z, new NestBlock());
         placedNestTiles.Add(pos);
-        Debug.Log("Added Block");
         // Pay health cost
         health -= NestCost;
         if (health < 0f) health = 0f;

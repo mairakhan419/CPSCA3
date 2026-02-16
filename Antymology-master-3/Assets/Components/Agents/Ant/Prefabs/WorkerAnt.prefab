@@ -110,9 +110,9 @@ MonoBehaviour:
   turnSpeed: 180
   searchRadius: 6
   retargetSeconds: 0.5
-  stepHeight: 1
+  stepHeight: 2
   stepCheckDist: 0.5
-  stepUpAmount: 0.25
+  stepUpAmount: 0.5
   stepForwardAmount: 0.1
   groundMask:
     serializedVersion: 2
@@ -127,6 +127,13 @@ MonoBehaviour:
   healthGainOnPickup: 50
   healthGivenToQueen: 10
   twoBlockTurnCooldown: 0.35
+  maxUpStepsToTarget: 1
+  maxDownStepsToTarget: 3
+  stuckSeconds: 1.5
+  stuckMinProgress: 0.25
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!54 &5990324593885193867
 Rigidbody:
   m_ObjectHideFlags: 0

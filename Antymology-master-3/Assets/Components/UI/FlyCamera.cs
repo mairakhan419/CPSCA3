@@ -29,10 +29,10 @@ namespace Antymology.UI
             lastMouse = new Vector3(-lastMouse.y * camSens, lastMouse.x * camSens, 0);
             lastMouse = new Vector3(transform.eulerAngles.x + lastMouse.x, transform.eulerAngles.y + lastMouse.y, 0);
 
-            // if (Input.GetMouseButton(2))
-            //     transform.eulerAngles = lastMouse;
-            if (Input.GetMouseButton(0))   // Left click
+            if (Input.GetMouseButton(2))
                 transform.eulerAngles = lastMouse;
+            // if (Input.GetMouseButton(0))   // Left click
+            //     transform.eulerAngles = lastMouse;
 
             lastMouse = Input.mousePosition;
             //Mouse  camera angle done.
