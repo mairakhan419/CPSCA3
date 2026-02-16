@@ -63,6 +63,7 @@ namespace Antymology.Terrain
         /// </summary>
         private SimplexNoise SimplexNoise;
         private readonly HashSet<Vector3Int> removedMulchTiles = new HashSet<Vector3Int>();
+        private List<Vector3Int> destroyedGrassBlocks = new List<Vector3Int>();
     private readonly List<Vector3Int> initialMulchTiles = new();
 
         #endregion
@@ -344,10 +345,12 @@ namespace Antymology.Terrain
                         }
                         else if (y <= stoneCeiling + grassHeight + foodHeight)
                             {
-                                double mulchChance = 0.5;
+                            // double mulchChance = 0.0;
+                                double mulchChance = 1;
+
 
                                 // 1. Get the block directly underneath the current position
-                                AbstractBlock blockUnderneath = Blocks[x, y - 1, z];
+                            AbstractBlock blockUnderneath = Blocks[x, y - 1, z];
 
                                 // 2. Only attempt to spawn mulch if the block below is NOT Air and NOT Acid
                                 // (You can refine this to specifically "is GrassBlock" if you prefer)
@@ -578,25 +581,62 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
         foreach (var t in initialMulchTiles)
                 SetBlock(t.x, t.y, t.z, new MulchBlock());
     }
-    public void RecordRemovedMulch(Vector3Int t)
-{
 
-    removedMulchTiles.Add(t);
-}
 
-// Call this at generation restart
-public void RestoreRemovedMulch()
-{
-        Debug.Log("RESTORING MULCH TILES: " + removedMulchTiles.Count);
+        public void RecordRemovedMulch(Vector3Int t)
+        {
 
-    // also clear claims so the new generation can target them again
+            removedMulchTiles.Add(t);
+        }
+
+        // Method to remove a grass block and track its position
+        public void RemoveGrassBlock(Vector3Int position)
+    {
+                var block = GetBlock(position.x, position.y, position.z);
+                if (block is GrassBlock)
+                {
+                    destroyedGrassBlocks.Add(position);
+                    SetBlock(position.x, position.y, position.z, new AirBlock()); // NOT null
+                }
+    }
+    public void RemoveMulchBlock(Vector3Int position)
+    {
+        var block = GetBlock(position.x, position.y, position.z);
+        if (block is MulchBlock)
+        {
+            RecordRemovedMulch(position);
+            SetBlock(position.x, position.y, position.z, new AirBlock());
+            ReleaseMulchClaim(position); // optional safety
+        }
+    }
+
+
+
+        public void RegenerateGrassBlocks()
+        {
+            foreach (var position in destroyedGrassBlocks)
+            {
+                SetBlock(position.x, position.y, position.z, new GrassBlock()); // Restore the grass block
+                Debug.Log($"Grass block regenerated at {position}.");
+            }
+
+            destroyedGrassBlocks.Clear(); // Clear the list after regeneration
+        }
+
+
+        // Call this at generation restart
+        public void RestoreRemovedMulch()
+        {
+            Debug.Log("RESTORING MULCH TILES: " + removedMulchTiles.Count);
+
+            // also clear claims so the new generation can target them again
             claimedMulch.Clear();
 
-    foreach (var t in removedMulchTiles)
-        SetBlock(t.x, t.y, t.z, new MulchBlock());
+            foreach (var t in removedMulchTiles)
+                SetBlock(t.x, t.y, t.z, new MulchBlock());
 
-    removedMulchTiles.Clear();
-}
+            removedMulchTiles.Clear();
+        }
 public void ReleaseMulchClaim(Vector3Int tile)
         {
             claimedMulch.Remove(tile);

@@ -24,14 +24,14 @@ public struct AntGenome
             // moveSpeed = UnityEngine.Random.Range(1f, 6f),
             moveSpeed = UnityEngine.Random.Range(0.5f, 3f),
 
-            turnChance = UnityEngine.Random.Range(4f, 5f),
-            turnChanceTwoBlocks = UnityEngine.Random.Range(9f, 10f),
+            turnChance = UnityEngine.Random.Range(0f, 1f),
+            turnChanceTwoBlocks = UnityEngine.Random.Range(0f, 1f),
             searchRadius = UnityEngine.Random.Range(4, 10),
             pauseDuration = UnityEngine.Random.Range(0.0f, 0.5f),
             avoidAcid = UnityEngine.Random.Range(0f, 1f),
             acidSenseRadius = UnityEngine.Random.Range(0, 10),
             // digProbability = UnityEngine.Random.Range(0f, 1f), // Random value between 0 and 1
-           digProbability = UnityEngine.Random.value < 1f ? 1f : 0f,
+            digProbability  = UnityEngine.Random.Range(0f, 1f),
 
             // FIX 2: Set the default value here instead
             changeDirInterval = 3f

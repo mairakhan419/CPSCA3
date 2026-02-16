@@ -117,8 +117,13 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
                 queen.ResetForNewGeneration(queenStartHealth);
 
             // 3) Restore mulch
+            // 3) Restore world blocks for new generation
             if (WorldManager.Instance != null)
+            {
                 WorldManager.Instance.RestoreRemovedMulch();
+                WorldManager.Instance.RegenerateGrassBlocks();
+            }
+
 
             // 4) Breed + spawn
             EvaluateAndBreedTopTwo();

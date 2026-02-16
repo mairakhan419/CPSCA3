@@ -110,34 +110,51 @@ public class WorkerAntSpawnerScript : MonoBehaviour
 
     }
 
-public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
-{
-        queen = null;
+    public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
+    {
+        // Find queen (you don't need to null it first)
         if (queen == null)
         {
             var q = GameObject.FindWithTag("Queen");
             if (q != null) queen = q.transform;
         }
 
-    var ants = new List<WorkerAntScript>(genomes.Count);
+        var ants = new List<WorkerAntScript>(genomes.Count);
 
-    // SAME center logic as WorldManager used
-    Vector3 centerXZ = new Vector3(WorldManager.Instance.WorldSizeX / 2f, 0f, WorldManager.Instance.WorldSizeZ / 2f);
-    Vector3 spawnCenter = groundToSurface ? GroundToSurface(centerXZ) : centerXZ;
+        if (workerAntPrefab == null)
+        {
+            Debug.LogError("WorkerAntSpawner: workerAntPrefab not assigned.");
+            return ants;
+        }
+
+        // Padding keeps spawns away from container walls
+        const float wallPaddingMin = 2f;
+        const float wallPaddingMaxX = 3f;
+        const float wallPaddingMaxZ = 3f;
+
+        float minX = wallPaddingMin;
+        float maxX = WorldManager.Instance.WorldSizeX - wallPaddingMaxX;
+        float minZ = wallPaddingMin;
+        float maxZ = WorldManager.Instance.WorldSizeZ - wallPaddingMaxZ;
 
         for (int i = 0; i < genomes.Count; i++)
         {
-            Vector3 offset = new Vector3(
-                Random.Range(-spawnRadius, spawnRadius),
+            // Pick a random point anywhere in bounds
+            Vector3 spawnPos = new Vector3(
+                Random.Range(minX, maxX),
                 0f,
-                Random.Range(-spawnRadius, spawnRadius)
+                Random.Range(minZ, maxZ)
             );
 
-            Vector3 spawnPos = spawnCenter + offset;
-
-            // keep them inside bounds so they don’t spawn outside the container walls
-            spawnPos.x = Mathf.Clamp(spawnPos.x, 2f, WorldManager.Instance.WorldSizeX - 3f);
-            spawnPos.z = Mathf.Clamp(spawnPos.z, 2f, WorldManager.Instance.WorldSizeZ - 3f);
+            // Optional: add a small jitter radius around that point
+            // (keeps your spawnRadius feature meaningful without centering everything)
+            if (spawnRadius > 0f)
+            {
+                spawnPos.x += Random.Range(-spawnRadius, spawnRadius);
+                spawnPos.z += Random.Range(-spawnRadius, spawnRadius);
+                spawnPos.x = Mathf.Clamp(spawnPos.x, minX, maxX);
+                spawnPos.z = Mathf.Clamp(spawnPos.z, minZ, maxZ);
+            }
 
             if (groundToSurface) spawnPos = GroundToSurface(spawnPos);
 
@@ -150,29 +167,78 @@ public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
                 Destroy(go);
                 continue;
             }
+
             ant.Initialize(genomes[i], queen);
             ants.Add(ant);
+        }
 
+        return ants;
     }
 
-    return ants;
-}
-private Vector3 GroundToSurface(Vector3 pos)
-{
-    int groundMask = LayerMask.GetMask("Ground");
 
-    Vector3 rayStart = new Vector3(pos.x, WorldManager.Instance.WorldSizeY + 10f, pos.z);
+// public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
+    // {
+    //         queen = null;
+    //         if (queen == null)
+    //         {
+    //             var q = GameObject.FindWithTag("Queen");
+    //             if (q != null) queen = q.transform;
+    //         }
 
-    if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 10000f, groundMask))
+    //         var ants = new List<WorkerAntScript>(genomes.Count);
+
+    //     // SAME center logic as WorldManager used
+    //     Vector3 centerXZ = new Vector3(WorldManager.Instance.WorldSizeX / 2f, 0f, WorldManager.Instance.WorldSizeZ / 2f);
+    //     Vector3 spawnCenter = groundToSurface ? GroundToSurface(centerXZ) : centerXZ;
+
+    //         for (int i = 0; i < genomes.Count; i++)
+    //         {
+    //             Vector3 offset = new Vector3(
+    //                 Random.Range(-spawnRadius, spawnRadius),
+    //                 0f,
+    //                 Random.Range(-spawnRadius, spawnRadius)
+    //             );
+
+    //             Vector3 spawnPos = spawnCenter + offset;
+
+    //             // keep them inside bounds so they don’t spawn outside the container walls
+    //             spawnPos.x = Mathf.Clamp(spawnPos.x, 2f, WorldManager.Instance.WorldSizeX - 3f);
+    //             spawnPos.z = Mathf.Clamp(spawnPos.z, 2f, WorldManager.Instance.WorldSizeZ - 3f);
+
+    //             if (groundToSurface) spawnPos = GroundToSurface(spawnPos);
+
+    //             GameObject go = Instantiate(workerAntPrefab, spawnPos, Quaternion.identity);
+
+    //             var ant = go.GetComponent<WorkerAntScript>();
+    //             if (ant == null)
+    //             {
+    //                 Debug.LogError("WorkerAntSpawner: prefab missing WorkerAntScript.");
+    //                 Destroy(go);
+    //                 continue;
+    //             }
+    //             ant.Initialize(genomes[i], queen);
+    //             ants.Add(ant);
+
+    //     }
+
+    //     return ants;
+    // }
+    private Vector3 GroundToSurface(Vector3 pos)
     {
-        float lift = 0.0f;
-        Collider c = workerAntPrefab.GetComponentInChildren<Collider>();
-        if (c != null) lift = c.bounds.extents.y;
-        return hit.point + Vector3.up * (lift + 0.02f);
-    }
+        int groundMask = LayerMask.GetMask("Ground");
 
-    Debug.LogWarning($"GroundToSurface failed at xz=({pos.x:0.00},{pos.z:0.00}).");
-    return pos;
-}
+        Vector3 rayStart = new Vector3(pos.x, WorldManager.Instance.WorldSizeY + 10f, pos.z);
+
+        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 10000f, groundMask))
+        {
+            float lift = 0.0f;
+            Collider c = workerAntPrefab.GetComponentInChildren<Collider>();
+            if (c != null) lift = c.bounds.extents.y;
+            return hit.point + Vector3.up * (lift + 0.02f);
+        }
+
+        Debug.LogWarning($"GroundToSurface failed at xz=({pos.x:0.00},{pos.z:0.00}).");
+        return pos;
+    }
 
 }

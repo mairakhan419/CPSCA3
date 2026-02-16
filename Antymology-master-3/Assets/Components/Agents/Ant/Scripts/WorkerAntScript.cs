@@ -1,6 +1,7 @@
 
 using UnityEngine;
 using Antymology.Terrain;
+using System.Collections.Generic;
 
 public class WorkerAntScript : MonoBehaviour
 {
@@ -39,9 +40,9 @@ public class WorkerAntScript : MonoBehaviour
     private int queuedTurnDegrees;
     private bool hasQueuedTurn;
 
-    private Rigidbody rb;
-    private CapsuleCollider cap;
-
+    // private Rigidbody rb;
+    // private CapsuleCollider cap;
+// /
     private bool carryingFood;
     public float Fitness { get; private set; }
     public int DeliveredCount { get; private set; }
@@ -84,13 +85,50 @@ public class WorkerAntScript : MonoBehaviour
 
     private bool brakeForNestThisFixedTick = false;
 
+    [Header("Grid Teleport Movement")]
+    public float moveInterval = 1f;   // how often we hop to a new tile
+    public int maxTeleportBlocks = 3;    // your "as long as it's shorter than 3 blocks"
+    public bool allowDiagonal = false;   // optional
+    private float nextMoveTime;
+    private Vector3Int gridDir = new Vector3Int(1, 0, 0); // current grid heading
+
+    // private Vector3 TileCenter(Vector3Int t) => new Vector3(t.x, t.y-0.5f, t.z);
+    private Vector3 TileCenter(Vector3Int t) => new Vector3(t.x, t.y - 0.5f, t.z);
+
+    public bool simpleForwardOnly = true;
+    [Header("Post-delivery cooldown")]
+    public int postDeliveryForwardTicks = 30;   // how many grid moves to go straight after delivering
+    private int postDeliveryTicksLeft = 0;
+
+    private bool InPostDeliveryCooldown => postDeliveryTicksLeft > 0;
+
+[Header("Visuals")]
+public Renderer antRenderer;   // assign in inspector (or auto-find)
+    public Color targetMulchColor = Color.magenta; // purple
+    private int blockedStreak = 0;
+private int blockedTotal = 0;
+private float nextBlockedLogTime = 0f;
+
+private int blockedSinceMove = 0;
+private float nextStuckLogTime = 0f;
+
+private readonly Dictionary<(int x, int z), int> topYCache = new();
+private int GetTopYCached(int x, int z)
+{
+    var key = (x, z);
+    if (topYCache.TryGetValue(key, out int y)) return y;
+
+    y = FindTopSolidY(x, z);
+    topYCache[key] = y;
+    return y;
+}
 
     void Awake()
     {
         queen = null;
         int layer = gameObject.layer;
-        Physics.IgnoreLayerCollision(layer, layer, true);
-        groundMask = LayerMask.GetMask("Ground");
+        // // Physics.IgnoreLayerCollision(layer, layer, true);
+        // groundMask = LayerMask.GetMask("Ground");
         health = maxHealth;
 
 
@@ -105,202 +143,165 @@ public class WorkerAntScript : MonoBehaviour
         }
 
 
-        rb = GetComponent<Rigidbody>();
-        cap = GetComponent<CapsuleCollider>();
+        // rb = GetComponent<Rigidbody>();
+        // cap = GetComponent<CapsuleCollider>();
 
-        if (rb == null)
-            Debug.LogError("No Rigidbody on ant!");
+        // if (rb == null)
+        //     Debug.LogError("No Rigidbody on ant!");
 
         // start wandering immediately
-        nextDecisionTime = Time.time + changeDirInterval;
+        nextMoveTime = Time.time + moveInterval + Random.Range(0f, moveInterval);
+        nextDecisionTime = Time.time + changeDirInterval + Random.Range(0f, changeDirInterval);
+        nextRetargetTime = Time.time + Random.Range(0f, retargetSeconds);
+
+
+
     }
 
     void Update()
     {
+        // Debug.Log("Carrying food: " + carryingFood);
         DrainHealthOverTime();
-        if (health <= 0f)
-        {
-            Die();
-            return;
-        }
+        if (health <= 0f) { Die(); return; }
 
-
-        // Safety check
         if (queen == null || WorldManager.Instance == null)
             return;
-        // Prevent steering from overriding forced wall turns
+
+        // bool allowSteering = Time.time >= forcedTurnUntilTime;
+
+        // 1) steering (acid/nest) - keep as-is
+        // if (allowSteering)
+        // {
+        //     if (Genome.avoidAcid > 0f)
+        //     {
+        //         Vector3 away = ComputeAcidAvoidanceVector();
+        //         if (away != Vector3.zero)
+        //             FacePosition(transform.position + Vector3.Slerp(transform.forward, away, Genome.avoidAcid));
+        //     }
+
+        //     if (nestAvoidStrength > 0f)
+        //     {
+        //         Vector3 awayNest = ComputeNestAvoidanceVector();
+        //         if (awayNest != Vector3.zero)
+        //             FacePosition(transform.position + Vector3.Slerp(transform.forward, awayNest, nestAvoidStrength));
+        //     }
+        // }
+
         bool allowSteering = Time.time >= forcedTurnUntilTime;
 
-
-
-
-        // Acid avoidance (highest priority steering)
-        if (allowSteering)
+        if (!simpleForwardOnly && allowSteering)
         {
-            // Acid avoidance
             if (Genome.avoidAcid > 0f)
             {
                 Vector3 away = ComputeAcidAvoidanceVector();
                 if (away != Vector3.zero)
-                {
-                    Vector3 desired = Vector3.Slerp(transform.forward, away, Genome.avoidAcid);
-                    FacePosition(transform.position + desired);
-                }
+                    FacePosition(transform.position + Vector3.Slerp(transform.forward, away, Genome.avoidAcid));
             }
 
-            // Nest avoidance
             if (nestAvoidStrength > 0f)
             {
                 Vector3 awayNest = ComputeNestAvoidanceVector();
                 if (awayNest != Vector3.zero)
-                {
-                    Vector3 desired = Vector3.Slerp(transform.forward, awayNest, nestAvoidStrength);
-                    FacePosition(transform.position + desired);
-                }
+                    FacePosition(transform.position + Vector3.Slerp(transform.forward, awayNest, nestAvoidStrength));
             }
         }
 
 
-if (carryingFood)
-{
-    Vector3 toQueen = (queen.position - transform.position);
-    toQueen.y = 0f;
-
-    Vector3 steer = toQueen.normalized;
-
-    // add avoidance while carrying
-    if (Genome.avoidAcid > 0f)
-    {
-        Vector3 awayAcid = ComputeAcidAvoidanceVector();
-        if (awayAcid != Vector3.zero) steer += awayAcid * Genome.avoidAcid;
-    }
-
-    if (nestAvoidStrength > 0f)
-    {
-        Vector3 awayNest = ComputeNestAvoidanceVector();
-        if (awayNest != Vector3.zero) steer += awayNest * nestAvoidStrength;
-    }
-
-    if (steer.sqrMagnitude > 0.0001f)
-        FacePosition(transform.position + steer); // smooth turn, doesn't hard-snap
-
-    TryFeedQueen();
-    targetMulchTile = null;
-    return;
-}
-
-
-        // Retarget mulch periodically (keep your existing logic)
-        // Acquire / maintain mulch target
-        if (!targetMulchTile.HasValue)
+        // 2) mode behavior
+        if (carryingFood)
         {
-            targetMulchTile = FindNearestMulchTile(transform.position);
-
-            if (targetMulchTile.HasValue)
+            // face target if we have one
+            if (!simpleForwardOnly && targetMulchTile.HasValue && Time.time >= forcedTurnUntilTime)
             {
-                // initialize stuck tracking when we pick a new target
-                stuckDeadline = Time.time + stuckSeconds;
-                lastTargetDist = float.PositiveInfinity;
+                Vector3Int tt = targetMulchTile.Value;
+                Vector3 targetPos = new Vector3(tt.x + 0.5f, tt.y + 0.5f, tt.z + 0.5f);
+                FacePosition(targetPos);
             }
+
+
+            // while carrying, ignore mulch targeting
+            targetMulchTile = null;
+
+            TryFeedQueen();
         }
         else
         {
-            // If the tile is gone, drop target
-            Vector3Int t = targetMulchTile.Value;
-            var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
 
-            if (!(b is MulchBlock))
+            // NEW: after delivering, go forward-only for a bit and do NOT target mulch
+            if (InPostDeliveryCooldown)
             {
                 targetMulchTile = null;
-            }
-        }
-
-
-
-        if (!carryingFood && targetMulchTile.HasValue)
-        {
-            Vector3Int tt = targetMulchTile.Value;
-            Vector3 targetPos = new Vector3(tt.x + 0.5f, tt.y + 0.5f, tt.z + 0.5f);
-
-
-            FacePosition(targetPos);
-
-            // ---- STUCK CHECK ----
-            float d = Vector3.Distance(transform.position, targetPos);
-
-            // if we made progress, extend deadline
-            if (lastTargetDist - d > stuckMinProgress)
-            {
-                stuckDeadline = Time.time + stuckSeconds;
-                lastTargetDist = d;
-            }
-            else if (Time.time > stuckDeadline)
-            {
-                // give up on unreachable target
-                targetMulchTile = null;
-                lastTargetDist = float.PositiveInfinity;
-            }
-        }
-
-
-
-
-        // Random wandering decision: schedule a pause + a 45-degree step turn
-        // Random wandering decision: schedule a pause, and sometimes a 45-degree step turn
-        if (Time.time >= nextDecisionTime)
-        {
-            // stop for a bit
-            pauseUntilTime = Time.time + pauseDuration;
-
-            // decide if we actually turn this time
-            // Debug.Log("TUrnCHance: " + turnChance);
-            if (Random.value < turnChance)
-            {
-
-                // pick a random multiple of 45 degrees (-180..180)
-                int stps = Random.Range(-4, 5); // inclusive -4..4
-
-                // optional: avoid 0-degree "turn"
-                if (stps == 0) stps = (Random.value < 0.5f) ? -1 : 1;
-
-                queuedTurnDegrees = stps * turnStepDegrees;
-                hasQueuedTurn = true;
+                // Don't dig / interact either
             }
             else
             {
-                hasQueuedTurn = false; // no turn this cycle
+                // acquire / maintain mulch target
+                if (!targetMulchTile.HasValue)
+                {
+                    if (Time.time >= nextRetargetTime)
+                    {
+                        nextRetargetTime = Time.time + retargetSeconds;
+
+                        targetMulchTile = FindNearestMulchTile(transform.position);
+                        if (targetMulchTile.HasValue)
+                        {
+                            stuckDeadline = Time.time + stuckSeconds;
+                            lastTargetDist = float.PositiveInfinity;
+                        }
+                    }
+                }
+
+                else
+                {
+                    Vector3Int t = targetMulchTile.Value;
+                    var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+                    if (b is not MulchBlock) targetMulchTile = null;
+                }
+
+                // face target if we have one
+                if (!simpleForwardOnly && targetMulchTile.HasValue)
+                {
+                    Vector3Int tt = targetMulchTile.Value;
+                    Vector3 targetPos = new Vector3(tt.x + 0.5f, tt.y + 0.5f, tt.z + 0.5f);
+                    FacePosition(targetPos);
+                }
+
+                TryDigGrassUnderfoot();
+                TryInteractWithBlock();
             }
-
-            nextDecisionTime = Time.time + changeDirInterval;
         }
 
 
+        // 3) wander turning decisions - keep your turn code here (unchanged)
+        // (your nextDecisionTime / pause / rotate code)
 
-        // Apply the turn once when the pause ends
-        if (hasQueuedTurn && Time.time >= pauseUntilTime)
+        // 4) ONE place where movement happens (always)
+        if (Time.time >= nextMoveTime)
         {
-            transform.Rotate(0f, queuedTurnDegrees, 0f);
-            hasQueuedTurn = false;
+            nextMoveTime = Time.time + moveInterval;
+            GridMoveTick();
+
+            // NEW: count down “forward only” moves
+            if (postDeliveryTicksLeft > 0)
+                postDeliveryTicksLeft--;
         }
 
 
-
-        // Interactions (keep)
-        TryPickupMulch();
-        TryFeedQueen();
     }
 
         // void OnCollisionEnter(Collision c)
-        // {
-        //     if (c.collider.CompareTag("Ant"))
-        //     {
-        //         Debug.Log("Collided with another ant, ignoring collision to prevent blocking.");
-        //         Physics.IgnoreCollision(cap, c.collider, true);
-        //     }
-        // }
+    // {
+    //     if (c.collider.CompareTag("Ant"))
+    //     {
+    //         Debug.Log("Collided with another ant, ignoring collision to prevent blocking.");
+    //         Physics.IgnoreCollision(cap, c.collider, true);
+    //     }
+    // }
 
     public void Initialize(AntGenome genome, Transform queenRef)
     {
+        topYCache.Clear();
+        blockedStreak = 0;
         health = maxHealth;
 
         Genome = genome;
@@ -327,136 +328,215 @@ if (carryingFood)
         hasQueuedTurn = false;
     }
 
-    void FixedUpdate()
-    {
-        if (rb == null || cap == null) return;
+    // void FixedUpdate()
+    // {
+    //     if (rb == null || cap == null) return;
 
-        // Reset nest brake flag every physics tick
-        brakeForNestThisFixedTick = false;
+    //     // Reset nest brake flag every physics tick
+    //     brakeForNestThisFixedTick = false;
 
-        // -------------------------------------------------
-        // 1) VERY CLOSE NEST CHECK (front brake + forced turn)
-        // -------------------------------------------------
-        Vector3 origin = transform.position + Vector3.up * 0.25f;
+    //     // -------------------------------------------------
+    //     // 1) VERY CLOSE NEST CHECK (front brake + forced turn)
+    //     // -------------------------------------------------
+    //     Vector3 origin = transform.position + Vector3.up * 0.25f;
 
-        if (Physics.Raycast(origin, transform.forward, out RaycastHit hit, nestBrakeDistance, groundMask))
-        {
-            var block = GetBlockFromHit(hit);
+    //     if (Physics.Raycast(origin, transform.forward, out RaycastHit hit, nestBrakeDistance, groundMask))
+    //     {
+    //         var block = GetBlockFromHit(hit);
 
-            if (block is NestBlock)
-            {
-                brakeForNestThisFixedTick = true;
+    //         if (block is NestBlock)
+    //         {
+    //             brakeForNestThisFixedTick = true;
 
-                // Rotate away on cooldown so we don't spin every tick
-                if (Time.time >= nextAllowedTwoBlockTurnTime)
-                {
-                    nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
+    //             // Rotate away on cooldown so we don't spin every tick
+    //             if (Time.time >= nextAllowedTwoBlockTurnTime)
+    //             {
+    //                 nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
 
-                    int steps = Random.Range(-4, 5);
-                    if (steps == 0)
-                        steps = (Random.value < 0.5f) ? -1 : 1;
+    //                 int steps = Random.Range(-4, 5);
+    //                 if (steps == 0)
+    //                     steps = (Random.value < 0.5f) ? -1 : 1;
 
-                    // Use Rigidbody rotation since movement is physics-based
-                    rb.MoveRotation(
-                        Quaternion.Euler(0f, steps * turnStepDegrees, 0f) * rb.rotation
-                    );
+    //                 // Use Rigidbody rotation since movement is physics-based
+    //                 rb.MoveRotation(
+    //                     Quaternion.Euler(0f, steps * turnStepDegrees, 0f) * rb.rotation
+    //                 );
 
-                    // Brief pause so it doesn't immediately push back in
-                    pauseUntilTime = Time.time + 0.10f;
+    //                 // Brief pause so it doesn't immediately push back in
+    //                 pauseUntilTime = Time.time + 0.10f;
 
-                    // Prevent Update steering from overriding this turn
-                    forcedTurnUntilTime = Time.time + 0.15f;
-                }
-            }
-        }
+    //                 // Prevent Update steering from overriding this turn
+    //                 forcedTurnUntilTime = Time.time + 0.15f;
+    //             }
+    //         }
+    //     }
 
-        // -------------------------------------------------
-        // 2) STEP UP / WALL HANDLING
-        // -------------------------------------------------
-        TryStepUp();
+    //     // -------------------------------------------------
+    //     // 2) STEP UP / WALL HANDLING
+    //     // -------------------------------------------------
+    //     TryStepUp();
 
-        // -------------------------------------------------
-        // 3) IF NEST IS BLOCKING, DO NOT MOVE FORWARD
-        // -------------------------------------------------
-        if (brakeForNestThisFixedTick)
-            return;
+    //     // -------------------------------------------------
+    //     // 3) IF NEST IS BLOCKING, DO NOT MOVE FORWARD
+    //     // -------------------------------------------------
+    //     if (brakeForNestThisFixedTick)
+    //         return;
 
-        // -------------------------------------------------
-        // 4) RESPECT PAUSE WINDOWS
-        // -------------------------------------------------
-        if (Time.time < pauseUntilTime)
-            return;
+    //     // -------------------------------------------------
+    //     // 4) RESPECT PAUSE WINDOWS
+    //     // -------------------------------------------------
+    //     if (Time.time < pauseUntilTime)
+    //         return;
 
-        // -------------------------------------------------
-        // 5) NORMAL FORWARD MOVEMENT
-        // -------------------------------------------------
-        Vector3 forwardMove =
-            transform.forward * moveSpeed * Time.fixedDeltaTime;
+    //     // -------------------------------------------------
+    //     // 5) NORMAL FORWARD MOVEMENT
+    //     // -------------------------------------------------
+    //     Vector3 forwardMove =
+    //         transform.forward * moveSpeed * Time.fixedDeltaTime;
 
-        rb.MovePosition(rb.position + forwardMove);
-    }
+    //     rb.MovePosition(rb.position + forwardMove);
+    // }
 
-
-    private void TryPickupMulch()
+    private void TryInteractWithBlock()
     {
         if (carryingFood) return;
         if (!targetMulchTile.HasValue) return;
+
         Vector3Int t = targetMulchTile.Value;
-        Vector3 tileCenter = (Vector3)targetMulchTile.Value;
-        float dist = Vector3.Distance(transform.position, tileCenter);
+        Vector3 tileCenter = new Vector3(t.x + 0.5f, t.y + 0.5f, t.z + 0.5f);
 
-        if (dist < 1.0f)
+        if (Vector3.Distance(transform.position, tileCenter) < 1.0f)
         {
-            // Vector3Int t = targetMulchTile.Value;
+            var block = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
 
-            if (!WorldManager.Instance.TryClaimMulch(t))
+            // Only interact with mulch targets here
+            if (block is MulchBlock)
             {
-                // Someone else has it -> don’t pile up here forever
-                targetMulchTile = null;
-                stuckDeadline = Time.time + stuckSeconds;
-                lastTargetDist = float.PositiveInfinity;
-                return;
-            }
-
-
-            var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
-            if (b is MulchBlock)
-            {
-                if (UnityEngine.Random.value <= digProbability)
+                if (!WorldManager.Instance.TryClaimMulch(t))
                 {
-                    carryingFood = true;
-
-                    // Remove the mulch
-                    // Remove the mulch
-                    WorldManager.Instance.RecordRemovedMulch(t);
-
-                    WorldManager.Instance.SetBlock(t.x, t.y, t.z, new AirBlock());
-
-
-                    Fitness += 2f;
-
-                    // Gain health for collecting mulch
-                    health = Mathf.Min(maxHealth, health + healthGainOnPickup);
-                    // Debug.Log($"Picked up mulch at {t}! Health: {health} --- Fitness: {Fitness}");
+                    targetMulchTile = null;
+                    stuckDeadline = Time.time + stuckSeconds;
+                    lastTargetDist = float.PositiveInfinity;
+                    return;
                 }
+
+                // IMPORTANT: No digProbability for mulch
+                carryingFood = true;
+health = Mathf.Min(maxHealth, health + healthGainOnPickup);
+                // Prefer a WorldManager method that records + removes (see WorldManager section)
+                WorldManager.Instance.RemoveMulchBlock(t);
+
+                targetMulchTile = null;
+            }
+            else
+            {
+                // Target is no longer mulch (got removed/changed)
+                targetMulchTile = null;
             }
 
-
-
-            WorldManager.Instance.ReleaseMulchClaim(t);
-            targetMulchTile = null;
+            stuckDeadline = Time.time + stuckSeconds;
+            lastTargetDist = float.PositiveInfinity;
         }
     }
+    private void TryDigGrassUnderfoot()
+    {
+        if (WorldManager.Instance == null) return;
+
+        // Typically the block under the ant’s feet is y - 1
+        Vector3Int t = CurrentTile();
+        Vector3Int under = new Vector3Int(t.x, t.y - 1, t.z);
+
+        var b = WorldManager.Instance.GetBlock(under.x, under.y, under.z);
+        if (b is not GrassBlock) return;
+
+        if (UnityEngine.Random.value <= digProbability)
+        {
+            WorldManager.Instance.RemoveGrassBlock(under);
+            // Optional: reward fitness, up to you
+            // Fitness += 0.5f;
+        }
+    }
+
+
+
+
+
+    // private void TryPickupMulch()
+    // {
+    //     if (carryingFood) return;
+    //     if (!targetMulchTile.HasValue) return;
+    //     Vector3Int t = targetMulchTile.Value;
+    //     Vector3 tileCenter = (Vector3)targetMulchTile.Value;
+    //     float dist = Vector3.Distance(transform.position, tileCenter);
+
+    //     if (dist < 1.0f)
+    //     {
+    //         // Vector3Int t = targetMulchTile.Value;
+
+    //         if (!WorldManager.Instance.TryClaimMulch(t))
+    //         {
+    //             // Someone else has it -> don’t pile up here forever
+    //             targetMulchTile = null;
+    //             stuckDeadline = Time.time + stuckSeconds;
+    //             lastTargetDist = float.PositiveInfinity;
+    //             return;
+    //         }
+
+
+    //         var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+    //         if (b is MulchBlock)
+    //         {
+    //             if (UnityEngine.Random.value <= digProbability)
+    //             {
+    //                 carryingFood = true;
+
+    //                 // Remove the mulch
+    //                 // Remove the mulch
+    //                 WorldManager.Instance.RecordRemovedMulch(t);
+
+    //                 WorldManager.Instance.SetBlock(t.x, t.y, t.z, new AirBlock());
+
+
+    //                 Fitness += 2f;
+
+    //                 // Gain health for collecting mulch
+    //                 health = Mathf.Min(maxHealth, health + healthGainOnPickup);
+    //                 // Debug.Log($"Picked up mulch at {t}! Health: {health} --- Fitness: {Fitness}");
+    //             }
+    //         }
+
+
+
+    //         WorldManager.Instance.ReleaseMulchClaim(t);
+    //         targetMulchTile = null;
+    //     }
+    // }
 
     void TryFeedQueen()
 {
     if (!carryingFood || queen == null) return;
 
-    float dist = Vector3.Distance(transform.position, queen.position);
-        if (dist < 1.0f)
+        // float dist = Vector3.Distance(transform.position, queen.position);
+        //     if (dist < 1.0f)
+        Vector3Int antTile = CurrentTile();
+        Vector3Int queenTile = WorldToTile(queen.position);
+
+        int manhattan =
+            Mathf.Abs(antTile.x - queenTile.x) +
+            Mathf.Abs(antTile.z - queenTile.z);
+
+        if (manhattan <= 3)
         {
             carryingFood = false;
 
+
+            postDeliveryTicksLeft = postDeliveryForwardTicks;
+
+            // Clear any target so we don't immediately resume targeting
+            targetMulchTile = null;
+
+            // Optional: prevent any steering snaps right after delivery
+            forcedTurnUntilTime = Time.time + moveInterval * 0.25f;
 
             var queenScript = queen.GetComponent<QueenAntScript>();
             if (queenScript != null)
@@ -469,17 +549,18 @@ if (carryingFood)
 
             DeliveredCount++;
             Fitness += 10f;
+            // forwardOnlyUntilTime = Time.time + forwardAfterDeliverySeconds;
             // Debug.Log($"Delivered food to queen! Total delivered: {DeliveredCount} --- Fitness: {Fitness} ");
 
-    }
+        }
 }
 
 
     private Vector3Int? FindNearestMulchTile(Vector3 worldPos)
     {
-        int cx = Mathf.RoundToInt(worldPos.x);
-        int cy = Mathf.RoundToInt(worldPos.y);
-        int cz = Mathf.RoundToInt(worldPos.z);
+        int cx = Mathf.FloorToInt(worldPos.x);
+        int cy = Mathf.FloorToInt(worldPos.y);
+        int cz = Mathf.FloorToInt(worldPos.z);
 
         float bestDistSq = float.PositiveInfinity;
         Vector3Int? best = null;
@@ -548,88 +629,87 @@ if (carryingFood)
         Vector3Int t = WorldToTile(inside);
         var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
 
-        Debug.Log($"{label} hit {b?.GetType().Name ?? "null"} at tile {t}, hitPoint {hit.point}");
     }
 
-    void TryStepUp()
-    {
-        if (rb == null || cap == null)
-        {
-            Debug.LogWarning("StepUp: Missing Rigidbody or CapsuleCollider");
-            return;
-        }
+    // void TryStepUp()
+    // {
+    //     // if (rb == null || cap == null)
+    //     // {
+    //     //     Debug.LogWarning("StepUp: Missing Rigidbody or CapsuleCollider");
+    //     //     return;
+    //     // }
 
-        Vector3 forwardOffset = transform.forward * (cap.radius + 0.02f);
-        float feetY = cap.bounds.min.y + 0.05f;
+    //     Vector3 forwardOffset = transform.forward * (cap.radius + 0.02f);
+    //     float feetY = cap.bounds.min.y + 0.05f;
 
-        Vector3 lowerOrigin = new Vector3(transform.position.x, feetY, transform.position.z) + forwardOffset;
-        Vector3 upperOrigin = lowerOrigin + Vector3.up * stepHeight;
-        // Debug.DrawRay(lowerOrigin, transform.forward * stepCheckDist, Color.red);
-        // Debug.DrawRay(upperOrigin, transform.forward * stepCheckDist, Color.blue);
-        // bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, stepCheckDist, groundMask);
-        // bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, stepCheckDist, groundMask);
-        bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, out RaycastHit lowerHit, stepCheckDist, groundMask);
-        bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, out RaycastHit upperHit, stepCheckDist, groundMask);
-
-
-
-        // 1-block step → climbable
-        if (hitLower && !hitUpper)
-        {
-            Vector3 step =
-                Vector3.up * stepUpAmount +
-                transform.forward * stepForwardAmount;
-
-            rb.MovePosition(rb.position + step);
-            return;
-        }
-        if (hitLower && hitUpper)
-        {
-            var lowerBlock = GetBlockFromHit(lowerHit);
-
-            // Nest wall handling
-            if (lowerBlock is NestBlock)
-            {
-                blockedByNestThisTick = true;
-                // Still blocked by nest; don't try to step forward into it
-                if (Time.time < nextAllowedTwoBlockTurnTime)
-                    return;
-
-                nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
-                forcedTurnUntilTime = Time.time + 0.15f; // stop Update() from snapping rotation back
-
-                int stps = Random.Range(-4, 5);
-                if (stps == 0) stps = (Random.value < 0.5f) ? -1 : 1;
-
-                // If you have rb available, prefer this:
-                rb.MoveRotation(Quaternion.Euler(0f, stps * turnStepDegrees, 0f) * rb.rotation);
-                // Otherwise:
-                // transform.Rotate(0f, stps * turnStepDegrees, 0f);
-
-                Debug.Log($"NEST TURN: {stps * turnStepDegrees} at t={Time.time}");
-                return;
-            }
-
-            // Non-nest 2-block wall (your normal logic)...
-            if (Time.time < nextAllowedTwoBlockTurnTime)
-                return;
-
-            nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
-
-            int steps = Random.Range(-4, 5);
-            if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
-
-            rb.MoveRotation(Quaternion.Euler(0f, steps * turnStepDegrees, 0f) * rb.rotation);
-            return;
-        }
+    //     Vector3 lowerOrigin = new Vector3(transform.position.x, feetY, transform.position.z) + forwardOffset;
+    //     Vector3 upperOrigin = lowerOrigin + Vector3.up * stepHeight;
+    //     // Debug.DrawRay(lowerOrigin, transform.forward * stepCheckDist, Color.red);
+    //     // Debug.DrawRay(upperOrigin, transform.forward * stepCheckDist, Color.blue);
+    //     // bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, stepCheckDist, groundMask);
+    //     // bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, stepCheckDist, groundMask);
+    //     bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, out RaycastHit lowerHit, stepCheckDist, groundMask);
+    //     bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, out RaycastHit upperHit, stepCheckDist, groundMask);
 
 
+
+    //     // 1-block step → climbable
+    //     if (hitLower && !hitUpper)
+    //     {
+    //         Vector3 step =
+    //             Vector3.up * stepUpAmount +
+    //             transform.forward * stepForwardAmount;
+
+    //         rb.MovePosition(rb.position + step);
+    //         return;
+    //     }
+    //     if (hitLower && hitUpper)
+    //     {
+    //         var lowerBlock = GetBlockFromHit(lowerHit);
+
+    //         // Nest wall handling
+    //         if (lowerBlock is NestBlock)
+    //         {
+    //             blockedByNestThisTick = true;
+    //             // Still blocked by nest; don't try to step forward into it
+    //             if (Time.time < nextAllowedTwoBlockTurnTime)
+    //                 return;
+
+    //             nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
+    //             forcedTurnUntilTime = Time.time + 0.15f; // stop Update() from snapping rotation back
+
+    //             int stps = Random.Range(-4, 5);
+    //             if (stps == 0) stps = (Random.value < 0.5f) ? -1 : 1;
+
+    //             // If you have rb available, prefer this:
+    //             rb.MoveRotation(Quaternion.Euler(0f, stps * turnStepDegrees, 0f) * rb.rotation);
+    //             // Otherwise:
+    //             // transform.Rotate(0f, stps * turnStepDegrees, 0f);
+
+    //             Debug.Log($"NEST TURN: {stps * turnStepDegrees} at t={Time.time}");
+    //             return;
+    //         }
+
+    //         // Non-nest 2-block wall (your normal logic)...
+    //         if (Time.time < nextAllowedTwoBlockTurnTime)
+    //             return;
+
+    //         nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
+
+    //         int steps = Random.Range(-4, 5);
+    //         if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
+
+    //         rb.MoveRotation(Quaternion.Euler(0f, steps * turnStepDegrees, 0f) * rb.rotation);
+    //         return;
+    //     }
 
 
 
 
 
-    }
+
+
+    // }
 
     void FaceQueen()
     {
@@ -699,9 +779,9 @@ private bool IsAcidAt(Vector3Int t)
         private Vector3Int CurrentTile()
         {
             return new Vector3Int(
-                Mathf.RoundToInt(transform.position.x),
-                Mathf.RoundToInt(transform.position.y),
-                Mathf.RoundToInt(transform.position.z)
+                Mathf.FloorToInt(transform.position.x),
+                Mathf.FloorToInt(transform.position.y),
+                Mathf.FloorToInt(transform.position.z)
             );
         }
 
@@ -756,12 +836,445 @@ private void DrainHealthOverTime()
         return away.normalized;
     }
 
+    private Vector3Int CurrentTileFloor()
+    {
+        // Floor works better for voxel grids than Round for consistent centers.
+        return new Vector3Int(
+            Mathf.FloorToInt(transform.position.x),
+            Mathf.FloorToInt(transform.position.y),
+            Mathf.FloorToInt(transform.position.z)
+        );
+    }
+
+
+    private bool IsAir(Vector3Int t)
+    {
+        var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+        return b is AirBlock;
+    }
+
+
+    private bool IsSolid(Vector3Int t)
+    {
+        var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+        return b is not AirBlock;
+    }
+
+
+    private bool IsWalkable(Vector3Int dest)
+    {
+        if (!IsAir(dest)) return false;
+
+        Vector3Int below = new Vector3Int(dest.x, dest.y - 1, dest.z);
+        if (!IsSolid(below)) return false;
+
+        // // Optional: avoid stepping into nest tiles (or near them)
+        // var underBlock = WorldManager.Instance.GetBlock(below.x, below.y, below.z);
+        // if (underBlock is NestBlock) return false;
+
+        return true;
+    }
+
+
+    // Checks the vertical constraint you already use for targeting (step up/down limits)
+    private bool RespectsStepLimits(Vector3Int from, Vector3Int to)
+    {
+        int dy = to.y - from.y;
+        if (dy > maxUpStepsToTarget) return false;
+        if (-dy > maxDownStepsToTarget) return false;
+        return true;
+    }
+
+    // private void GridMoveTick()
+    // {
+    //     if (WorldManager.Instance == null) return;
+
+    //     // respect pause window from your wander logic
+    //     if (Time.time < pauseUntilTime) return;
+
+    //     Vector3Int cur = CurrentTileFloor();
+
+    //     // Decide where we want to go
+    //     Vector3Int desired;
+
+    //     if (carryingFood && queen != null)
+    //     {
+    //         desired = StepToward(cur, WorldToTile(queen.position));
+    //     }
+    //     else if (targetMulchTile.HasValue)
+    //     {
+    //         desired = StepToward(cur, targetMulchTile.Value);
+    //     }
+    //     else
+    //     {
+    //         desired = StepForward(cur);
+    //     }
+
+    //     // Teleport
+    //     transform.position = TileCenter(desired);
+    // }
+
+    // Takes up to maxTeleportBlocks in one hop, but will fall back to shorter hops if blocked.
+    private void GridMoveTick()
+    {
+        Vector3Int cur = CurrentTile();
+        if (!carryingFood &&
+    !targetMulchTile.HasValue &&
+    // !InPostDeliveryCooldown &&
+    Time.time >= forcedTurnUntilTime)
+        {
+
+            TryRandomTurn();
+        }
+        Vector3Int dir;
+
+        if (carryingFood)
+        {
+            // Debug.Log(1);
+            dir = DirTowardQueen(cur);
+        }
+        else if (InPostDeliveryCooldown)
+        {
+            // Debug.Log(2);
+
+            dir = ForwardToGridDir();
+        }
+        else if (targetMulchTile.HasValue)
+        {
+
+            Vector3Int mulch = targetMulchTile.Value;
+            Vector3Int goalStand = new Vector3Int(mulch.x, mulch.y + 1, mulch.z); // stand above mulch
+            dir = DirTowardTile(cur, goalStand);
+        }
+        else
+        {
+            // Debug.Log(4);
+
+            dir = ForwardToGridDir();
+        }
+
+        if (dir == Vector3Int.zero)
+        {
+            // We are aligned in XZ with the target column.
+            // Try to interact; if we can't, clear target or force a turn.
+            if (targetMulchTile.HasValue)
+            {
+                // If you're close enough, TryInteractWithBlock() will pick it up.
+                TryInteractWithBlock();
+
+                // If still targeting and we didn't pick it up, we’re “stuck on column”.
+                // Clear it so we resume wandering instead of freezing.
+                if (targetMulchTile.HasValue)
+                    targetMulchTile = null;
+
+                // Force a turn so we don't immediately re-lock
+                HandleBlocked("alignedColumnNoInteract");
+                return;
+            }
+
+            // Otherwise, just continue forward
+            dir = ForwardToGridDir();
+        }
+
+
+
+
+        int cx = cur.x;
+        int cz = cur.z;
+
+        int nx = cx + dir.x;
+        int nz = cz + dir.z;
+
+        // 1. Bounds check
+        if (nx < 0 || nx >= WorldManager.Instance.WorldSizeX ||
+            nz < 0 || nz >= WorldManager.Instance.WorldSizeZ)
+        {
+            HandleBlocked("bounds");
+            return;
+        }
+
+        int curTopY = GetTopYCached(cx, cz);
+        int nextTopY = GetTopYCached(nx, nz);
+
+
+        // 2. Fall off world check
+        if (curTopY < 0 || nextTopY < 0)
+        {
+            HandleBlocked("noGround");
+            return;
+        }
+
+        // 3. Height/Obstacle Check
+        // If the step is too high, or too deep of a drop
+        int heightDiff = nextTopY - curTopY;
+        // Debug.Log("Height Diff"+ heightDiff);
+        // if (heightDiff > maxUpStepsToTarget || -heightDiff > maxDownStepsToTarget)
+        if (heightDiff > maxUpStepsToTarget)
+        {
+            // OBSTACLE DETECTED!
+             HandleBlocked($"heightDiff={heightDiff}");
+            return;
+        }
+
+        // 4. Container check
+        if (IsContainer(nx, nextTopY, nz) || IsContainer(nx, nextTopY + 1, nz))
+        {
+            HandleBlocked("container");
+            return;
+        }
+
+        // 5. Success! Move the ant.
+        Vector3Int standTile = new Vector3Int(nx, nextTopY + 1, nz);
+        transform.position = TileCenter(standTile);
+
+        // Reset stuck trackers because we successfully advanced
+        blockedStreak = 0;
+        blockedSinceMove = 0;
+    }
+
+private void TryRandomTurn()
+{
+        // Debug.Log("Trying Random Turn");
+    if (Random.value <= turnChance)
+        {
+            RandomTurn90();
+
+            // Prevent steering from instantly snapping back
+            forcedTurnUntilTime = Time.time + (moveInterval * 0.5f);
+        }
+}
+
+private void RandomTurn90()
+{
+    // 50/50 left or right
+    float angle = (Random.value < 0.5f) ? -90f : 90f;
+
+    transform.Rotate(0f, angle, 0f);
+}
+
+
+    private Vector3Int ForwardToGridDir()
+    {
+        Vector3 f = transform.forward;
+
+        if (Mathf.Abs(f.x) >= Mathf.Abs(f.z))
+            return new Vector3Int(f.x >= 0f ? 1 : -1, 0, 0);
+        else
+            return new Vector3Int(0, 0, f.z >= 0f ? 1 : -1);
+    }
+
+
+    private Vector3Int DirTowardQueen(Vector3Int cur)
+{
+    if (queen == null) return ForwardToGridDir();
+
+    Vector3Int q = WorldToTile(queen.position);
+    int dx = q.x - cur.x;
+    int dz = q.z - cur.z;
+
+    // If same tile, keep moving forward (or pick a random direction)
+    if (dx == 0 && dz == 0)
+    {
+        return (Random.value < 0.5f)
+            ? new Vector3Int(1, 0, 0)
+            : new Vector3Int(0, 0, 1);
+    }
+
+    if (Mathf.Abs(dx) >= Mathf.Abs(dz))
+        return new Vector3Int(dx > 0 ? 1 : -1, 0, 0);
+    else
+        return new Vector3Int(0, 0, dz > 0 ? 1 : -1);
+}
+
+
+
+
+
+    private Vector3Int StepToward(Vector3Int cur, Vector3Int goal)
+    {
+        Vector3Int best = cur;
+
+        // try stride 3,2,1 (your requirement)
+        for (int stride = maxTeleportBlocks; stride >= 1; stride--)
+        {
+            Vector3Int candidate = cur;
+
+            int dx = goal.x - cur.x;
+            int dz = goal.z - cur.z;
+
+            int stepX = dx == 0 ? 0 : (dx > 0 ? 1 : -1);
+            int stepZ = dz == 0 ? 0 : (dz > 0 ? 1 : -1);
+
+            if (!allowDiagonal)
+            {
+                // pick the dominant axis
+                if (Mathf.Abs(dx) >= Mathf.Abs(dz))
+                    candidate.x += stepX * stride;
+                else
+                    candidate.z += stepZ * stride;
+            }
+            else
+            {
+                candidate.x += stepX * stride;
+                candidate.z += stepZ * stride;
+            }
+
+            // handle y by sampling nearby y offsets (0, +1, -1, etc) within your limits
+            // choose first walkable that respects step limits
+            for (int dy = -maxDownStepsToTarget; dy <= maxUpStepsToTarget; dy++)
+            {
+                Vector3Int c2 = new Vector3Int(candidate.x, cur.y + dy, candidate.z);
+
+                if (!RespectsStepLimits(cur, c2)) continue;
+                if (!IsWalkable(c2)) continue;
+
+                return c2;
+            }
+        }
+
+        // If we couldn't move toward goal, try turning via your existing queued turns
+        return StepForward(cur);
+    }
+
+    private Vector3Int StepForward(Vector3Int cur)
+    {
+        // Convert forward to a grid direction
+        Vector3 f = transform.forward;
+        Vector3Int dir;
+
+        if (Mathf.Abs(f.x) >= Mathf.Abs(f.z))
+            dir = new Vector3Int(f.x >= 0 ? 1 : -1, 0, 0);
+        else
+            dir = new Vector3Int(0, 0, f.z >= 0 ? 1 : -1);
+
+        // stride 3,2,1 forward
+        for (int stride = maxTeleportBlocks; stride >= 1; stride--)
+        {
+            Vector3Int candidate = cur + new Vector3Int(dir.x * stride, 0, dir.z * stride);
+
+            for (int dy = -maxDownStepsToTarget; dy <= maxUpStepsToTarget; dy++)
+            {
+                Vector3Int c2 = new Vector3Int(candidate.x, cur.y + dy, candidate.z);
+
+                if (!RespectsStepLimits(cur, c2)) continue;
+                if (!IsWalkable(c2)) continue;
+
+                return c2;
+            }
+        }
+
+        // blocked: stay in place (your wander turn logic will rotate eventually)
+        return cur;
+    }
+    private int FindTopSolidY(int x, int z)
+    {
+        // Scan from top down to find the highest non-air block
+        for (int y = WorldManager.Instance.WorldSizeY - 1; y >= 0; y--)
+        {
+            var b = WorldManager.Instance.GetBlock(x, y, z);
+            if (b is not AirBlock)
+                return y;
+        }
+        return -1; // nothing found
+    }
+
+
+    private bool IsContainer(int x, int y, int z)
+    {
+        return WorldManager.Instance.GetBlock(x, y, z) is ContainerBlock;
+    }
+
+    private int GroundYAt(int x, int z)
+    {
+        return FindTopSolidY(x, z);
+    }
+
+    // Helper to handle turning and suppressing the Queen-facing logic
+// private void HandleBlocked()
+// {
+//     blockedStreak++;
+//     blockedTotal++;
+
+//     // Log only when the ant is clearly stuck, and throttle logs
+//     if (blockedStreak >= 6 && Time.time >= nextBlockedLogTime)
+//     {
+//         nextBlockedLogTime = Time.time + 1.0f; // log at most once per second per ant
+
+//         Vector3Int cur = CurrentTile();
+//         Debug.LogWarning(
+//             $"[ANT STUCK] name={name} id={GetInstanceID()} " +
+//             $"blockedStreak={blockedStreak} blockedTotal={blockedTotal} " +
+//             $"pos={transform.position} tile={cur} " +
+//             $"carrying={carryingFood} postCooldown={InPostDeliveryCooldown} " +
+//             $"target={(targetMulchTile.HasValue ? targetMulchTile.Value.ToString() : "none")}"
+//         );
+//     }
+
+//     // Cache recovery
+//     if (blockedStreak >= 3)
+//     {
+//         topYCache.Clear();
+//         blockedStreak = 0;
+//     }
+
+//     RandomTurn90();
+//     forcedTurnUntilTime = Time.time + (moveInterval * 1.5f);
+// }
+
+private void HandleBlocked(string reason = "")
+{
+    blockedStreak++;
+    blockedSinceMove++;
+
+    if (blockedSinceMove >= 8 && Time.time >= nextStuckLogTime)
+    {
+        nextStuckLogTime = Time.time + 1.0f; // throttle per ant
+
+        Vector3Int cur = CurrentTile();
+        Debug.LogWarning(
+            $"[ANT STUCK] {reason} name={name} id={GetInstanceID()} " +
+            $"blockedSinceMove={blockedSinceMove} cacheStreak={blockedStreak} " +
+            $"tile={cur} pos={transform.position} " +
+            $"carrying={carryingFood} cooldown={InPostDeliveryCooldown} " +
+            $"target={(targetMulchTile.HasValue ? targetMulchTile.Value.ToString() : "none")}"
+        );
+    }
+
+    // cache heal (does NOT reset blockedSinceMove)
+    if (blockedStreak >= 3)
+    {
+        topYCache.Clear();
+        blockedStreak = 0;
+    }
+
+    RandomTurn90();
+    forcedTurnUntilTime = Time.time + (moveInterval * 1.5f);
+}
+
+
+
+    private Vector3Int DirTowardTile(Vector3Int cur, Vector3Int goal)
+    {
+        int dx = goal.x - cur.x;
+        int dz = goal.z - cur.z;
+        int dy = goal.y - cur.y;
+        // Debug.Log("DirTowardTile: dx=" + dx + " dz=" + dz + " dy=" + dy);
+
+        if (dx == 0 && dz == 0) return Vector3Int.zero;
+
+        if (Mathf.Abs(dx) >= Mathf.Abs(dz))
+            return new Vector3Int(dx > 0 ? 1 : -1, 0, 0);
+        else
+            return new Vector3Int(0, 0, dz > 0 ? 1 : -1);
+    }
+
 
 private void Die()
-{
-    // If you have an evolution manager tracking ants, notify it here.
-    Destroy(gameObject);
-}
+    {
+        // Debug.Log("Dead");
+        // If you have an evolution manager tracking ants, notify it here.
+        Destroy(gameObject);
+    }
 
 }
 
