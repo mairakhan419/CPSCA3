@@ -106,6 +106,7 @@ MonoBehaviour:
   queen: {fileID: 4530932826033969840, guid: 8b7072c670b824312ab764a890b26b59, type: 3}
   foodTag: Food
   moveSpeed: 2
+  digProbability: 0
   turnSpeed: 180
   searchRadius: 6
   retargetSeconds: 0.5
@@ -120,6 +121,12 @@ MonoBehaviour:
   pauseDuration: 0.25
   turnStepDegrees: 45
   turnChance: 0.35
+  turnChanceTwoBlocks: 0
+  maxHealth: 100
+  healthDrainPerSecond: 1
+  healthGainOnPickup: 50
+  healthGivenToQueen: 10
+  twoBlockTurnCooldown: 0.35
 --- !u!54 &5990324593885193867
 Rigidbody:
   m_ObjectHideFlags: 0

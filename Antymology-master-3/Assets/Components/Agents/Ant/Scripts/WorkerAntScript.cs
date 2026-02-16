@@ -10,6 +10,8 @@ public class WorkerAntScript : MonoBehaviour
 
     [Header("Movement")]
     public float moveSpeed = 2f;
+    public float digProbability = 0f;
+
     public float turnSpeed = 180f; // not used in wander, but you can keep it
 
     [Header("Voxel Food Sensing")]
@@ -22,7 +24,7 @@ public class WorkerAntScript : MonoBehaviour
 
     [Header("Step Up")]
     public float stepHeight = 10.0f;       // set to your voxel step height
-    public float stepCheckDist = 4f;
+    public float stepCheckDist = 1f;
     public float stepUpAmount = 1f;        // how much to lift per step attempt
     public float stepForwardAmount = 0.10f; // small forward nudge
     public LayerMask groundMask = ~6;
@@ -56,10 +58,30 @@ public class WorkerAntScript : MonoBehaviour
     public float healthDrainPerSecond = 1f;
     public float health { get; private set; }
 
+    public float healthGainOnPickup = 50f;
+    public float healthGivenToQueen = 10f;
+    [Header("2-block turn control")]
+    public float twoBlockTurnCooldown = 0.35f;
+    private float nextAllowedTwoBlockTurnTime = 0f;
+    private bool wasBlockedByTwoBlock = false;
+    [Header("Target Filtering")]
+    public int maxUpStepsToTarget = 1;   // 1 = only target at same height or 1 block up
+    public int maxDownStepsToTarget = 3; // optional
+    [Header("Stuck handling")]
+    public float stuckSeconds = 1.5f;
+    public float stuckMinProgress = 0.25f; // must reduce distance by this much to count as progress
+
+    private float stuckDeadline;
+    private float lastTargetDist = float.PositiveInfinity;
+
+
+
+
     void Awake()
     {
         queen = null;
-
+        int layer = gameObject.layer;
+        Physics.IgnoreLayerCollision(layer, layer, true);
         groundMask = LayerMask.GetMask("Ground");
         health = maxHealth;
 
@@ -124,27 +146,58 @@ public class WorkerAntScript : MonoBehaviour
         }
 
         // Retarget mulch periodically (keep your existing logic)
-        // Acquire a target ONCE, then keep it until it's gone (or picked up)
+        // Acquire / maintain mulch target
         if (!targetMulchTile.HasValue)
         {
             targetMulchTile = FindNearestMulchTile(transform.position);
+
+            if (targetMulchTile.HasValue)
+            {
+                // initialize stuck tracking when we pick a new target
+                stuckDeadline = Time.time + stuckSeconds;
+                lastTargetDist = float.PositiveInfinity;
+            }
         }
         else
         {
-            // Optional safety: if the target tile is no longer mulch, drop it and search again next frame
+            // If the tile is gone, drop target
             Vector3Int t = targetMulchTile.Value;
             var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+
             if (!(b is MulchBlock))
+            {
                 targetMulchTile = null;
+            }
         }
+
+
 
         if (!carryingFood && targetMulchTile.HasValue)
         {
-            // Use tile center (Vector3Int casts to corner-ish coords; +0.5 puts you in the middle)
-            Vector3 targetPos = (Vector3)targetMulchTile.Value + new Vector3(0.5f, 0f, 0.5f);
+            Vector3 targetPos =
+                (Vector3)targetMulchTile.Value +
+                new Vector3(0.5f, 0f, 0.5f);
 
             FacePosition(targetPos);
+
+            // ---- STUCK CHECK ----
+            float d = Vector3.Distance(transform.position, targetPos);
+
+            // if we made progress, extend deadline
+            if (lastTargetDist - d > stuckMinProgress)
+            {
+                stuckDeadline = Time.time + stuckSeconds;
+                lastTargetDist = d;
+            }
+            else if (Time.time > stuckDeadline)
+            {
+                // give up on unreachable target
+                targetMulchTile = null;
+                lastTargetDist = float.PositiveInfinity;
+            }
         }
+
+
 
 
         // Random wandering decision: schedule a pause + a 45-degree step turn
@@ -190,6 +243,15 @@ public class WorkerAntScript : MonoBehaviour
         TryFeedQueen();
     }
 
+        // void OnCollisionEnter(Collision c)
+        // {
+        //     if (c.collider.CompareTag("Ant"))
+        //     {
+        //         Debug.Log("Collided with another ant, ignoring collision to prevent blocking.");
+        //         Physics.IgnoreCollision(cap, c.collider, true);
+        //     }
+        // }
+
     public void Initialize(AntGenome genome, Transform queenRef)
     {
         health = maxHealth;
@@ -203,7 +265,7 @@ public class WorkerAntScript : MonoBehaviour
         turnChanceTwoBlocks = genome.turnChanceTwoBlocks;
         pauseDuration = genome.pauseDuration;
         searchRadius = genome.searchRadius;
-
+        digProbability = genome.digProbability;
 
         queen = queenRef;
 
@@ -251,12 +313,26 @@ public class WorkerAntScript : MonoBehaviour
             var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
             if (b is MulchBlock)
             {
-                carryingFood = true;
-                Debug.Log($"Ant {name} picked up mulch at {t}");
+                if (UnityEngine.Random.value <= digProbability)
+                {
+                    carryingFood = true;
 
-                WorldManager.Instance.SetBlock(t.x, t.y, t.z, new AirBlock());
-                Fitness += 2f;
+                    // Remove the mulch
+                    // Remove the mulch
+                    WorldManager.Instance.RecordRemovedMulch(t);
+
+                    WorldManager.Instance.SetBlock(t.x, t.y, t.z, new AirBlock());
+
+
+                    Fitness += 2f;
+
+                    // Gain health for collecting mulch
+                    health = Mathf.Min(maxHealth, health + healthGainOnPickup);
+                    // Debug.Log($"Picked up mulch at {t}! Health: {health} --- Fitness: {Fitness}");
+                }
             }
+
+
 
             WorldManager.Instance.ReleaseMulchClaim(t);
             targetMulchTile = null;
@@ -264,21 +340,31 @@ public class WorkerAntScript : MonoBehaviour
     }
 
     void TryFeedQueen()
-    {
-        if (!carryingFood || queen == null) return;
+{
+    if (!carryingFood || queen == null) return;
 
-        float dist = Vector3.Distance(transform.position, queen.position);
+    float dist = Vector3.Distance(transform.position, queen.position);
         if (dist < 1.0f)
         {
-            // Debug.Log("Atempting Feeding queen now");
-
             carryingFood = false;
+
+
+            var queenScript = queen.GetComponent<QueenAntScript>();
+            if (queenScript != null)
+            {
+                float amt = Mathf.Min(healthGivenToQueen, health);
+                float accepted = queenScript.TryReceiveHealth(amt);
+                health -= accepted; // subtract exactly what she took
+                if (health < 0f) health = 0f;
+            }
 
             DeliveredCount++;
             Fitness += 10f;
-            // Debug.Log("Ant " + name + " delivered food to queen! Total delivered: " + DeliveredCount);
-        }
+            // Debug.Log($"Delivered food to queen! Total delivered: {DeliveredCount} --- Fitness: {Fitness} ");
+
     }
+}
+
 
     private Vector3Int? FindNearestMulchTile(Vector3 worldPos)
     {
@@ -288,25 +374,30 @@ public class WorkerAntScript : MonoBehaviour
 
         float bestDistSq = float.PositiveInfinity;
         Vector3Int? best = null;
-        for (int dx = -searchRadius; dx <= searchRadius; dx++)
-            for (int dy = -2; dy <= 2; dy++)
-                for (int dz = -searchRadius; dz <= searchRadius; dz++)
-                {
-                    int x = cx + dx;
-                    int y = cy + dy;
-                    int z = cz + dz;
 
-                    var b = WorldManager.Instance.GetBlock(x, y, z);
-                    if (b is MulchBlock)
-                    {
-                        float d2 = dx * dx + dy * dy + dz * dz;
-                        if (d2 < bestDistSq)
-                        {
-                            bestDistSq = d2;
-                            best = new Vector3Int(x, y, z);
-                        }
-                    }
-                }
+        for (int dx = -searchRadius; dx <= searchRadius; dx++)
+        for (int dz = -searchRadius; dz <= searchRadius; dz++)
+        for (int dy = -2; dy <= 2; dy++)
+        {
+            int x = cx + dx;
+            int y = cy + dy;
+            int z = cz + dz;
+
+            // height filter (key part)
+            int deltaY = y - cy;
+            if (deltaY > maxUpStepsToTarget) continue;
+            if (-deltaY > maxDownStepsToTarget) continue;
+
+            var b = WorldManager.Instance.GetBlock(x, y, z);
+            if (b is not MulchBlock) continue;
+
+            float d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < bestDistSq)
+            {
+                bestDistSq = d2;
+                best = new Vector3Int(x, y, z);
+            }
+        }
 
         return best;
     }
@@ -324,7 +415,8 @@ public class WorkerAntScript : MonoBehaviour
 
         Vector3 lowerOrigin = new Vector3(transform.position.x, feetY, transform.position.z) + forwardOffset;
         Vector3 upperOrigin = lowerOrigin + Vector3.up * stepHeight;
-
+        Debug.DrawRay(lowerOrigin, transform.forward * stepCheckDist, Color.red);
+        Debug.DrawRay(upperOrigin, transform.forward * stepCheckDist, Color.blue);
         bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, stepCheckDist, groundMask);
         bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, stepCheckDist, groundMask);
 
@@ -338,26 +430,54 @@ public class WorkerAntScript : MonoBehaviour
             rb.MovePosition(rb.position + step);
             return;
         }
+    if (hitLower && hitUpper)
+    {
+        // only allow a turn occasionally, not every physics tick
+        if (Time.time < nextAllowedTwoBlockTurnTime)
+            return;
 
-        // 2-block wall → NOT climbable
-        if (hitLower && hitUpper)
-        {
-            //         Debug.Log(
-            //     $"Ant {name} encountered a 2-block obstacle at {transform.position}--- TUrn Chance is: {turnChanceTwoBlocks}"
-            // );
+        nextAllowedTwoBlockTurnTime = Time.time + twoBlockTurnCooldown;
 
-            if (Random.value > turnChanceTwoBlocks)
-            {
-                // Try a random turn to escape
-                int steps = Random.Range(-4, 5); // inclusive -4..4
-                if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
-                transform.Rotate(0f, steps * turnStepDegrees, 0f);
-            }
-        }
+        // if (Random.value <= turnChanceTwoBlocks)
+        // {
+            // Debug.Log("Rotate (2-block)");
+
+            int steps = Random.Range(-4, 5);
+            if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
+            transform.Rotate(0f, steps * turnStepDegrees, 0f);
+        // }
+    }
+
+        // if (hitLower && hitUpper)
+        // {
+        //     if (!wasBlockedByTwoBlock)
+        //     {
+        //         wasBlockedByTwoBlock = true;
+
+        //         if (Random.value <= turnChanceTwoBlocks)
+        //         {
+        //             // Debug.Log("Rotate (2-block first contact)");
+
+        //             int steps = Random.Range(-4, 5);
+        //             if (steps == 0) steps = (Random.value < 0.5f) ? -1 : 1;
+        //             transform.Rotate(0f, steps * turnStepDegrees, 0f);
+        //         }
+        //     }
+
+        //     return;
+        // }
+        // else
+        // {
+        //     // reset latch once we're not blocked anymore
+        //     wasBlockedByTwoBlock = false;
+        // }
+
+
 
 
 
     }
+
     void FaceQueen()
     {
         if (queen == null) return;

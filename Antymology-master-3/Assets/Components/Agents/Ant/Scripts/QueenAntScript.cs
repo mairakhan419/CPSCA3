@@ -1,5 +1,6 @@
 using UnityEngine;
 using Antymology.Terrain;
+using System.Collections.Generic;
 
 public class QueenAntScript : MonoBehaviour
 {
@@ -16,6 +17,7 @@ public class QueenAntScript : MonoBehaviour
 
     float NestCost => maxHealth / 3f;
     float BuildThreshold => maxHealth * (2f / 3f);
+    private readonly List<Vector3Int> placedNestTiles = new();
 
     void Start()
     {
@@ -33,15 +35,16 @@ public class QueenAntScript : MonoBehaviour
     }
 
     // Workers will call this
-    public bool TryReceiveHealth(float amount)
+    public float TryReceiveHealth(float amount)
     {
-        if (amount <= 0f) return false;
-        if (health >= maxHealth) return false;
+        if (amount <= 0f) return 0f;
+        if (health >= maxHealth) return 0f;
 
         float accepted = Mathf.Min(amount, maxHealth - health);
         health += accepted;
-        return accepted > 0f;
+        return accepted;
     }
+
 
     private void TryPlaceNestBlockInFront()
     {
@@ -65,7 +68,9 @@ public class QueenAntScript : MonoBehaviour
         int y = FindFirstAirY(x, startY, z, maxStackSearch);
         if (y == -1) return;
         // Place nest
+        Vector3Int pos = new Vector3Int(x, y, z);
         WorldManager.Instance.SetBlock(x, y, z, new NestBlock());
+        placedNestTiles.Add(pos);
         Debug.Log("Added Block");
         // Pay health cost
         health -= NestCost;
@@ -88,4 +93,35 @@ public class QueenAntScript : MonoBehaviour
 
         return -1;
     }
+
+    public void ResetForNewGeneration(float resetHealth)
+    {
+        Debug.Log("RESETING QUEEN Health: " + health);
+        // Remove all nest blocks this queen placed
+        if (WorldManager.Instance != null)
+        {
+            Debug.Log("Length of Placed Nest: " + placedNestTiles.Count);
+            for (int i = 0; i < placedNestTiles.Count; i++)
+            {
+                Vector3Int p = placedNestTiles[i];
+
+                // Only remove if it's still a NestBlock (avoid deleting something else)
+                var b = WorldManager.Instance.GetBlock(p.x, p.y, p.z);
+                if (b is NestBlock)
+                {
+                    Debug.Log("Clearing Block");
+                    WorldManager.Instance.SetBlock(p.x, p.y, p.z, new AirBlock());
+
+                }
+            }
+        }
+
+        placedNestTiles.Clear();
+
+        // Reset queen health + placement timer
+        health = Mathf.Clamp(resetHealth, 0f, maxHealth);
+        _nextPlaceTime = Time.time + placeIntervalSeconds;
+    }
+
+
 }

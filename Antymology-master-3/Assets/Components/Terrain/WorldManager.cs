@@ -62,6 +62,8 @@ namespace Antymology.Terrain
         /// Random number generator.
         /// </summary>
         private SimplexNoise SimplexNoise;
+        private readonly HashSet<Vector3Int> removedMulchTiles = new HashSet<Vector3Int>();
+    private readonly List<Vector3Int> initialMulchTiles = new();
 
         #endregion
 
@@ -98,7 +100,7 @@ namespace Antymology.Terrain
         {
             GenerateData();
             GenerateChunks();
-
+            // CacheInitialMulchTiles(0, WorldSizeY - 1);
             Camera.main.transform.position = new Vector3(0 / 2, Blocks.GetLength(1), 0);
             Camera.main.transform.LookAt(new Vector3(Blocks.GetLength(0), 0, Blocks.GetLength(2)));
 
@@ -343,7 +345,7 @@ namespace Antymology.Terrain
                         else if (y <= stoneCeiling + grassHeight + foodHeight)
                         {
                             // Blocks[x, y, z] = new MulchBlock();
-                            double mulchChance = 0.00; // 25%
+                            double mulchChance = 0.15; // 25%
                             // double mulchChance = 1; // 25%
 
                             if (rng.NextDouble() < mulchChance)
@@ -542,10 +544,54 @@ public bool TryClaimMulch(Vector3Int tile)
     return true;
 }
 
-public void ReleaseMulchClaim(Vector3Int tile)
+public void CacheInitialMulchTiles(int yMin, int yMax)
 {
-    claimedMulch.Remove(tile);
+    initialMulchTiles.Clear();
+
+    yMin = Mathf.Clamp(yMin, 0, WorldSizeY - 1);
+    yMax = Mathf.Clamp(yMax, 0, WorldSizeY - 1);
+
+    for (int x = 0; x < WorldSizeX; x++)
+    for (int z = 0; z < WorldSizeZ; z++)
+    for (int y = yMin; y <= yMax; y++)
+    {
+        var b = GetBlock(x, y, z);
+        if (b is MulchBlock)
+            initialMulchTiles.Add(new Vector3Int(x, y, z));
+    }
+
+    Debug.Log($"Cached {initialMulchTiles.Count} mulch tiles.");
 }
+
+    public void RestoreMulchTiles()
+    {
+        Debug.Log("RESTORING MULCH TILES: " + initialMulchTiles.Count);
+        foreach (var t in initialMulchTiles)
+                SetBlock(t.x, t.y, t.z, new MulchBlock());
+    }
+    public void RecordRemovedMulch(Vector3Int t)
+{
+
+    removedMulchTiles.Add(t);
+}
+
+// Call this at generation restart
+public void RestoreRemovedMulch()
+{
+        Debug.Log("RESTORING MULCH TILES: " + removedMulchTiles.Count);
+
+    // also clear claims so the new generation can target them again
+            claimedMulch.Clear();
+
+    foreach (var t in removedMulchTiles)
+        SetBlock(t.x, t.y, t.z, new MulchBlock());
+
+    removedMulchTiles.Clear();
+}
+public void ReleaseMulchClaim(Vector3Int tile)
+        {
+            claimedMulch.Remove(tile);
+        }
 
         #endregion
 

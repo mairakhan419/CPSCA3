@@ -24,34 +24,72 @@ public class EvolutionManagerScript : MonoBehaviour
     private int generationIndex = 0;
 
     private System.Random rng = new System.Random(1234);
+    public QueenAntScript queen;
+    public float queenStartHealth = 100f;
 
- private System.Collections.IEnumerator Start()
-{
-    while (WorldManager.Instance == null)
-        yield return null;
+    private System.Collections.IEnumerator Start()
+    {
+        if (queen == null)
+        {
+            GameObject q = GameObject.FindWithTag("Queen");
 
-    // wait for chunk meshes/colliders to be generated
-    yield return new WaitForEndOfFrame();
-    yield return new WaitForEndOfFrame();
+            if (q != null)
+            {
 
-    if (spawner == null) spawner = FindFirstObjectByType<WorkerAntSpawnerScript>();
+                queen = q.GetComponent<QueenAntScript>();
+            }
+        }
+        Debug.Log("Got Queen: " + queen);
 
-    genomes = new List<AntGenome>(populationSize);
-    for (int i = 0; i < populationSize; i++)
-        genomes.Add(AntGenome.RandomGenome());
+        while (WorldManager.Instance == null)
+            yield return null;
 
-    SpawnNewGeneration();
-}
+        // wait for chunk meshes/colliders to be generated
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForEndOfFrame();
+
+        if (spawner == null) spawner = FindFirstObjectByType<WorkerAntSpawnerScript>();
+
+        genomes = new List<AntGenome>(populationSize);
+        for (int i = 0; i < populationSize; i++)
+            genomes.Add(AntGenome.RandomGenome());
+
+        SpawnNewGeneration();
+    }
 
     void Update()
     {
-        // Debug.Log("Gen Time: " + generationEndTime + "time: " +Time.time);
+        if (queen == null)
+        {
+            GameObject q = GameObject.FindWithTag("Queen");
+
+            if (q != null)
+            {
+
+                queen = q.GetComponent<QueenAntScript>();
+            }
+        }
         if (Time.time >= generationEndTime)
         {
             Debug.Log($"Generation {generationIndex} ended. Evaluating and breeding next generation...");
+
+            // Reset queen
+            if (queen != null)
+                queen.ResetForNewGeneration(queenStartHealth);
+
+            // >>> RESTORE MULCH HERE <<<
+            if (WorldManager.Instance != null)
+            {
+               WorldManager.Instance.RestoreRemovedMulch();
+            }
+
+            // Continue evolution
             EvaluateAndBreedTopTwo();
             SpawnNewGeneration();
         }
+
+
+
     }
 
     private void SpawnNewGeneration()
@@ -62,7 +100,7 @@ public class EvolutionManagerScript : MonoBehaviour
             {
                 Destroy(ant.gameObject);
             }
-        ;
+
         liveAnts.Clear();
 
         // spawn new ants
@@ -71,8 +109,34 @@ public class EvolutionManagerScript : MonoBehaviour
         generationIndex++;
         generationEndTime = Time.time + evaluationSeconds;
 
-        Debug.Log($"Generation {generationIndex} started. Ends at t={generationEndTime:0.00}");
+        // ---- Compute averages from genomes ----
+        float avgMoveSpeed = 0f;
+        float avgSearchRadius = 0f;
+        float avgDigProbability = 0f;
+
+        if (genomes.Count > 0)
+        {
+            foreach (var g in genomes)
+            {
+                avgMoveSpeed += g.moveSpeed;
+                avgSearchRadius += g.searchRadius;
+                avgDigProbability += g.digProbability;
+            }
+
+            avgMoveSpeed /= genomes.Count;
+            avgSearchRadius /= genomes.Count;
+            avgDigProbability /= genomes.Count;
+        }
+
+        // ---- Log message ----
+        Debug.Log(
+            $"Generation {generationIndex} started. Ends at t={generationEndTime:0.00}\n" +
+            $"Averages → MoveSpeed: {avgMoveSpeed:0.00} | " +
+            $"SearchRadius: {avgSearchRadius:0.00} | " +
+            $"DigProbability: {avgDigProbability:0.00}"
+        );
     }
+
 
     private void EvaluateAndBreedTopTwo()
     {
@@ -93,11 +157,11 @@ public class EvolutionManagerScript : MonoBehaviour
 
         var best1 = ranked[0];
         var best2 = ranked[1];
-        Debug.Log("Best 1 Search Radius " + best1.Genome.searchRadius);
-        Debug.Log("Best 1 Move Speed" + best1.Genome.moveSpeed);
+        Debug.Log("Best 1 Search Radius " + best1.Genome.searchRadius + " Move Speed" + best1.Genome.moveSpeed + "Dig Proability " + best1.Genome.digProbability);
+        Debug.Log("Best 2 Search Radius " + best2.Genome.searchRadius + " Move Speed" + best2.Genome.moveSpeed + "Dig Proability " + best2.Genome.digProbability);
 
-        Debug.Log("Best 2: " + best2.Genome.searchRadius);
-        Debug.Log("Best 2 Move Speed" + best2.Genome.moveSpeed);
+
+
 
 
 
@@ -134,6 +198,9 @@ public class EvolutionManagerScript : MonoBehaviour
             turnChanceTwoBlocks = Pick() ? a.turnChanceTwoBlocks : b.turnChanceTwoBlocks,
             avoidAcid = Pick() ? a.avoidAcid : b.avoidAcid,
             acidSenseRadius = Pick() ? a.acidSenseRadius : b.acidSenseRadius,
+
+            // FIX: include digProbability
+            digProbability = Pick() ? a.digProbability : b.digProbability,
         };
     }
 
@@ -147,12 +214,18 @@ public class EvolutionManagerScript : MonoBehaviour
             return Mathf.Clamp(x, min, max);
         }
 
-        if (rng.NextDouble() < mutationRate) g.moveSpeed = Jitter(g.moveSpeed, 0.5f, 4f);
+        if (rng.NextDouble() < mutationRate) g.moveSpeed = Jitter(g.moveSpeed, 1f, 4f);
         if (rng.NextDouble() < mutationRate) g.turnChance = Jitter(g.turnChance, 0f, 1f);
         if (rng.NextDouble() < mutationRate) g.pauseDuration = Jitter(g.pauseDuration, 0f, 1f);
+
         if (rng.NextDouble() < mutationRate) g.searchRadius = Mathf.Clamp(g.searchRadius + rng.Next(-2, 3), 1, 12);
+
         if (rng.NextDouble() < mutationRate) g.turnChanceTwoBlocks = Jitter(g.turnChanceTwoBlocks, 0f, 1f);
         if (rng.NextDouble() < mutationRate) g.avoidAcid = Jitter(g.avoidAcid, 0f, 1f);
         if (rng.NextDouble() < mutationRate) g.acidSenseRadius = Mathf.Clamp(g.acidSenseRadius + rng.Next(-1, 2), 1, 8);
+
+        // FIX: mutate digProbability (0..1)
+        if (rng.NextDouble() < mutationRate) g.digProbability = Jitter(g.digProbability, 0f, 1f);
     }
 }
+

@@ -12,7 +12,7 @@ public struct AntGenome
     [Range(0.0f, 1f)] public float pauseDuration;
     [Range(0f, 1f)] public float avoidAcid;   // 0 = doesn’t care, 1 = strongly avoids
     [Range(1, 8)]  public int acidSenseRadius;
-
+    [Range(0f, 1f)] public float digProbability;
 
     // FIX 1: Remove "= 3f" here. Struct fields cannot have initializers in C# 9.
     public float changeDirInterval;
@@ -21,13 +21,17 @@ public struct AntGenome
     {
         return new AntGenome
         {
-            moveSpeed = UnityEngine.Random.Range(1f, 6f),
-            turnChance = UnityEngine.Random.Range(5f, 10f),
+            // moveSpeed = UnityEngine.Random.Range(1f, 6f),
+            moveSpeed = UnityEngine.Random.Range(2f, 3f),
+
+            turnChance = UnityEngine.Random.Range(4f, 5f),
             turnChanceTwoBlocks = UnityEngine.Random.Range(9f, 10f),
-             searchRadius = UnityEngine.Random.value < 0.20f ? 10 : 1,
+            searchRadius = UnityEngine.Random.Range(4, 10),
             pauseDuration = UnityEngine.Random.Range(0.0f, 0.5f),
             avoidAcid = UnityEngine.Random.Range(0f, 1f),
             acidSenseRadius = UnityEngine.Random.Range(0, 10),
+            // digProbability = UnityEngine.Random.Range(0f, 1f), // Random value between 0 and 1
+           digProbability = UnityEngine.Random.value < 1f ? 1f : 0f,
 
             // FIX 2: Set the default value here instead
             changeDirInterval = 3f
