@@ -160,7 +160,7 @@ namespace Antymology.Terrain
             Vector3 centerXZ = new Vector3(WorldSizeX / 2f, 0f, WorldSizeZ / 2f);
 
             Vector3 queenPos = PlaceOnGround(queenAntPrefab, centerXZ);
-            Debug.Log("REAL QUEEN POS: " + queenPos);
+            // Debug.Log("REAL QUEEN POS: " + queenPos);
             GameObject queenGO = Instantiate(queenAntPrefab, queenPos, Quaternion.identity);
             QueenTransform = queenGO.transform;
             // Queen = queenGO.GetComponent<QueenAnt>();
@@ -237,12 +237,12 @@ namespace Antymology.Terrain
                 WorldXCoordinate < 0 ||
                 WorldYCoordinate < 0 ||
                 WorldZCoordinate < 0 ||
-                WorldXCoordinate > Blocks.GetLength(0) ||
-                WorldYCoordinate > Blocks.GetLength(1) ||
-                WorldZCoordinate > Blocks.GetLength(2)
+                WorldXCoordinate >= Blocks.GetLength(0) ||
+                WorldYCoordinate >= Blocks.GetLength(1) ||
+                WorldZCoordinate >= Blocks.GetLength(2)
             )
             {
-                Debug.Log("Attempted to set a block which didn't exist");
+                // Debug.Log("Attempted to set a block which didn't exist");
                 return;
             }
 
@@ -346,10 +346,13 @@ namespace Antymology.Terrain
                         else if (y <= stoneCeiling + grassHeight + foodHeight)
                             {
                             // double mulchChance = 0.0;
+                            // double mulchChance = 0.25;
                                 double mulchChance = 1;
 
 
-                                // 1. Get the block directly underneath the current position
+
+                            // 1. Get the block directly underneath the current position
+
                             AbstractBlock blockUnderneath = Blocks[x, y - 1, z];
 
                                 // 2. Only attempt to spawn mulch if the block below is NOT Air and NOT Acid
@@ -496,8 +499,10 @@ namespace Antymology.Terrain
 
             if (updateZ - 1 >= 0)
                 Chunks[updateX, updateY, updateZ - 1].updateNeeded = true;
-            if (updateX + 1 < Chunks.GetLength(2))
+
+            if (updateZ + 1 < Chunks.GetLength(2))
                 Chunks[updateX, updateY, updateZ + 1].updateNeeded = true;
+
         }
 
         #endregion
@@ -572,12 +577,12 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
             initialMulchTiles.Add(new Vector3Int(x, y, z));
     }
 
-    Debug.Log($"Cached {initialMulchTiles.Count} mulch tiles.");
+    // Debug.Log($"Cached {initialMulchTiles.Count} mulch tiles.");
 }
 
     public void RestoreMulchTiles()
     {
-        Debug.Log("RESTORING MULCH TILES: " + initialMulchTiles.Count);
+        // Debug.Log("RESTORING MULCH TILES: " + initialMulchTiles.Count);
         foreach (var t in initialMulchTiles)
                 SetBlock(t.x, t.y, t.z, new MulchBlock());
     }
@@ -593,22 +598,23 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
         public void RemoveGrassBlock(Vector3Int position)
     {
                 var block = GetBlock(position.x, position.y, position.z);
-                if (block is GrassBlock)
-                {
-                    destroyedGrassBlocks.Add(position);
-                    SetBlock(position.x, position.y, position.z, new AirBlock()); // NOT null
+            if (block is GrassBlock)
+            {
+                destroyedGrassBlocks.Add(position);
+                SetBlock(position.x, position.y, position.z, new AirBlock()); // NOT null
+                // Debug.Log("Block is air");
                 }
     }
-    public void RemoveMulchBlock(Vector3Int position)
-    {
-        var block = GetBlock(position.x, position.y, position.z);
-        if (block is MulchBlock)
+        public void RemoveMulchBlock(Vector3Int position)
         {
-            RecordRemovedMulch(position);
-            SetBlock(position.x, position.y, position.z, new AirBlock());
-            ReleaseMulchClaim(position); // optional safety
+            var block = GetBlock(position.x, position.y, position.z);
+            if (block is MulchBlock)
+            {
+                RecordRemovedMulch(position);
+                SetBlock(position.x, position.y, position.z, new AirBlock());
+                ReleaseMulchClaim(position); // optional safety
+            }
         }
-    }
 
 
 
@@ -617,7 +623,7 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
             foreach (var position in destroyedGrassBlocks)
             {
                 SetBlock(position.x, position.y, position.z, new GrassBlock()); // Restore the grass block
-                Debug.Log($"Grass block regenerated at {position}.");
+                // Debug.Log($"Grass block regenerated at {position}.");
             }
 
             destroyedGrassBlocks.Clear(); // Clear the list after regeneration
@@ -631,9 +637,11 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
 
             // also clear claims so the new generation can target them again
             claimedMulch.Clear();
+            Debug.Log("Still restoring mulch tiles: " + removedMulchTiles.Count);
 
             foreach (var t in removedMulchTiles)
                 SetBlock(t.x, t.y, t.z, new MulchBlock());
+            Debug.Log("Restored " + removedMulchTiles.Count);
 
             removedMulchTiles.Clear();
         }

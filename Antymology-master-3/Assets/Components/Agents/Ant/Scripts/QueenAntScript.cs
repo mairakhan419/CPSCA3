@@ -95,11 +95,11 @@ public class QueenAntScript : MonoBehaviour
 
     public void ResetForNewGeneration(float resetHealth)
     {
-        Debug.Log("RESETING QUEEN Health: " + health + " -> " + resetHealth);
+        // Debug.Log("RESETING QUEEN Health: " + health + " -> " + resetHealth);
         // Remove all nest blocks this queen placed
         if (WorldManager.Instance != null)
         {
-            Debug.Log("Length of Placed Nest: " + placedNestTiles.Count);
+            // Debug.Log("Length of Placed Nest: " + placedNestTiles.Count);
             for (int i = 0; i < placedNestTiles.Count; i++)
             {
                 Vector3Int p = placedNestTiles[i];
@@ -108,7 +108,7 @@ public class QueenAntScript : MonoBehaviour
                 var b = WorldManager.Instance.GetBlock(p.x, p.y, p.z);
                 if (b is NestBlock)
                 {
-                    Debug.Log("Clearing Block");
+                    // Debug.Log("Clearing Block");
                     WorldManager.Instance.SetBlock(p.x, p.y, p.z, new AirBlock());
 
                 }

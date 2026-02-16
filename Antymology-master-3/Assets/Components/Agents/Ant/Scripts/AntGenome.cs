@@ -22,7 +22,7 @@ public struct AntGenome
         return new AntGenome
         {
             // moveSpeed = UnityEngine.Random.Range(1f, 6f),
-            moveSpeed = UnityEngine.Random.Range(0.5f, 3f),
+            moveSpeed = UnityEngine.Random.Range(0.1f, 1f),
 
             turnChance = UnityEngine.Random.Range(0f, 1f),
             turnChanceTwoBlocks = UnityEngine.Random.Range(0f, 1f),

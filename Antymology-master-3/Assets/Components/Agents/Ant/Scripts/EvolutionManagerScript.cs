@@ -75,7 +75,6 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
                 queen = q.GetComponent<QueenAntScript>();
             }
         }
-        Debug.Log("Got Queen: " + queen);
 
         while (WorldManager.Instance == null)
             yield return null;
@@ -110,12 +109,10 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
             // 1) Capture stats for the generation that just finished
             CaptureGenerationRecord();
 
-            Debug.Log($"Generation {generationIndex} ended. Evaluating and breeding next generation...");
 
             // 2) Reset queen
             if (queen != null)
                 queen.ResetForNewGeneration(queenStartHealth);
-
             // 3) Restore mulch
             // 3) Restore world blocks for new generation
             if (WorldManager.Instance != null)
@@ -125,8 +122,10 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
             }
 
 
+
             // 4) Breed + spawn
             EvaluateAndBreedTopTwo();
+            generationIndex++;
             SpawnNewGeneration();
         }
 
@@ -197,8 +196,7 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
 
         // spawn new ants
         liveAnts.AddRange(spawner.SpawnGeneration(genomes));
-
-        generationIndex++;
+        // generationIndex++;
         generationEndTime = Time.time + evaluationSeconds;
 
         // ---- Compute averages from genomes ----

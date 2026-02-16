@@ -308,6 +308,7 @@ private int GetTopYCached(int x, int z)
 
         // Apply genes to behaviour knobs you already have
         moveSpeed = genome.moveSpeed;
+        moveInterval = genome.moveSpeed;
         turnChance = genome.turnChance;
         // changeDirInterval = genome.changeDirInterval;
         turnChanceTwoBlocks = genome.turnChanceTwoBlocks;
@@ -425,7 +426,7 @@ private int GetTopYCached(int x, int z)
 health = Mathf.Min(maxHealth, health + healthGainOnPickup);
                 // Prefer a WorldManager method that records + removes (see WorldManager section)
                 WorldManager.Instance.RemoveMulchBlock(t);
-
+                Fitness += 3;
                 targetMulchTile = null;
             }
             else
@@ -548,7 +549,7 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
             }
 
             DeliveredCount++;
-            Fitness += 10f;
+            Fitness += 5f;
             // forwardOnlyUntilTime = Time.time + forwardAfterDeliverySeconds;
             // Debug.Log($"Delivered food to queen! Total delivered: {DeliveredCount} --- Fitness: {Fitness} ");
 
@@ -776,14 +777,17 @@ private bool IsAcidAt(Vector3Int t)
         return away.normalized;
     }
 
-        private Vector3Int CurrentTile()
-        {
-            return new Vector3Int(
-                Mathf.FloorToInt(transform.position.x),
-                Mathf.FloorToInt(transform.position.y),
-                Mathf.FloorToInt(transform.position.z)
-            );
-        }
+       private Vector3Int CurrentTile()
+{
+    // Because TileCenter uses y - 0.5, the ant stands at *.5.
+    // Add 0.5 so we get back to the intended integer tile.
+    return new Vector3Int(
+        Mathf.FloorToInt(transform.position.x + 0.0001f),
+        Mathf.FloorToInt(transform.position.y + 0.5f),
+        Mathf.FloorToInt(transform.position.z + 0.0001f)
+    );
+}
+
 
         private bool IsStandingOnAcid()
         {
@@ -1231,13 +1235,13 @@ private void HandleBlocked(string reason = "")
         nextStuckLogTime = Time.time + 1.0f; // throttle per ant
 
         Vector3Int cur = CurrentTile();
-        Debug.LogWarning(
-            $"[ANT STUCK] {reason} name={name} id={GetInstanceID()} " +
-            $"blockedSinceMove={blockedSinceMove} cacheStreak={blockedStreak} " +
-            $"tile={cur} pos={transform.position} " +
-            $"carrying={carryingFood} cooldown={InPostDeliveryCooldown} " +
-            $"target={(targetMulchTile.HasValue ? targetMulchTile.Value.ToString() : "none")}"
-        );
+        // Debug.LogWarning(
+        //     $"[ANT STUCK] {reason} name={name} id={GetInstanceID()} " +
+        //     $"blockedSinceMove={blockedSinceMove} cacheStreak={blockedStreak} " +
+        //     $"tile={cur} pos={transform.position} " +
+        //     $"carrying={carryingFood} cooldown={InPostDeliveryCooldown} " +
+        //     $"target={(targetMulchTile.HasValue ? targetMulchTile.Value.ToString() : "none")}"
+        // );
     }
 
     // cache heal (does NOT reset blockedSinceMove)
