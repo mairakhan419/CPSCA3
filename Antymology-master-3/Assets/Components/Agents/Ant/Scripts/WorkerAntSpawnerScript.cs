@@ -125,34 +125,34 @@ public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
     Vector3 centerXZ = new Vector3(WorldManager.Instance.WorldSizeX / 2f, 0f, WorldManager.Instance.WorldSizeZ / 2f);
     Vector3 spawnCenter = groundToSurface ? GroundToSurface(centerXZ) : centerXZ;
 
-    for (int i = 0; i < genomes.Count; i++)
-    {
-        Vector3 offset = new Vector3(
-            Random.Range(-spawnRadius, spawnRadius),
-            0f,
-            Random.Range(-spawnRadius, spawnRadius)
-        );
-
-        Vector3 spawnPos = spawnCenter + offset;
-
-        // keep them inside bounds so they don’t spawn outside the container walls
-        spawnPos.x = Mathf.Clamp(spawnPos.x, 2f, WorldManager.Instance.WorldSizeX - 3f);
-        spawnPos.z = Mathf.Clamp(spawnPos.z, 2f, WorldManager.Instance.WorldSizeZ - 3f);
-
-        if (groundToSurface) spawnPos = GroundToSurface(spawnPos);
-
-        GameObject go = Instantiate(workerAntPrefab, spawnPos, Quaternion.identity);
-
-        var ant = go.GetComponent<WorkerAntScript>();
-        if (ant == null)
+        for (int i = 0; i < genomes.Count; i++)
         {
-            Debug.LogError("WorkerAntSpawner: prefab missing WorkerAntScript.");
-            Destroy(go);
-            continue;
-        }
-        Debug.Log("INITIALIZING: " + queen.position);
-        ant.Initialize(genomes[i], queen);
-        ants.Add(ant);
+            Vector3 offset = new Vector3(
+                Random.Range(-spawnRadius, spawnRadius),
+                0f,
+                Random.Range(-spawnRadius, spawnRadius)
+            );
+
+            Vector3 spawnPos = spawnCenter + offset;
+
+            // keep them inside bounds so they don’t spawn outside the container walls
+            spawnPos.x = Mathf.Clamp(spawnPos.x, 2f, WorldManager.Instance.WorldSizeX - 3f);
+            spawnPos.z = Mathf.Clamp(spawnPos.z, 2f, WorldManager.Instance.WorldSizeZ - 3f);
+
+            if (groundToSurface) spawnPos = GroundToSurface(spawnPos);
+
+            GameObject go = Instantiate(workerAntPrefab, spawnPos, Quaternion.identity);
+
+            var ant = go.GetComponent<WorkerAntScript>();
+            if (ant == null)
+            {
+                Debug.LogError("WorkerAntSpawner: prefab missing WorkerAntScript.");
+                Destroy(go);
+                continue;
+            }
+            ant.Initialize(genomes[i], queen);
+            ants.Add(ant);
+
     }
 
     return ants;

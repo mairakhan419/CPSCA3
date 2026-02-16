@@ -124,11 +124,20 @@ public class WorkerAntScript : MonoBehaviour
         }
 
         // Retarget mulch periodically (keep your existing logic)
-        if (!targetMulchTile.HasValue || Time.time >= nextRetargetTime)
+        // Acquire a target ONCE, then keep it until it's gone (or picked up)
+        if (!targetMulchTile.HasValue)
         {
             targetMulchTile = FindNearestMulchTile(transform.position);
-            nextRetargetTime = Time.time + retargetSeconds;
         }
+        else
+        {
+            // Optional safety: if the target tile is no longer mulch, drop it and search again next frame
+            Vector3Int t = targetMulchTile.Value;
+            var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+            if (!(b is MulchBlock))
+                targetMulchTile = null;
+        }
+
         if (!carryingFood && targetMulchTile.HasValue)
         {
             // Use tile center (Vector3Int casts to corner-ish coords; +0.5 puts you in the middle)
@@ -261,13 +270,13 @@ public class WorkerAntScript : MonoBehaviour
         float dist = Vector3.Distance(transform.position, queen.position);
         if (dist < 1.0f)
         {
-            Debug.Log("Atempting Feeding queen now");
+            // Debug.Log("Atempting Feeding queen now");
 
             carryingFood = false;
 
             DeliveredCount++;
             Fitness += 10f;
-            Debug.Log("Ant " + name + " delivered food to queen! Total delivered: " + DeliveredCount);
+            // Debug.Log("Ant " + name + " delivered food to queen! Total delivered: " + DeliveredCount);
         }
     }
 
@@ -279,7 +288,6 @@ public class WorkerAntScript : MonoBehaviour
 
         float bestDistSq = float.PositiveInfinity;
         Vector3Int? best = null;
-
         for (int dx = -searchRadius; dx <= searchRadius; dx++)
             for (int dy = -2; dy <= 2; dy++)
                 for (int dz = -searchRadius; dz <= searchRadius; dz++)

@@ -74,7 +74,7 @@ namespace Antymology.UI
             int x = Mathf.RoundToInt(position.x);
             int y = Mathf.RoundToInt(position.y);
             int z = Mathf.RoundToInt(position.z);
-             Debug.Log($"Block placed at coords: ({x}, {y}, {z})");
+            //  Debug.Log($"Block placed at coords: ({x}, {y}, {z})");
             SetBlockAt(x, y, z);
         }
 

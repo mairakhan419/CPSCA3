@@ -60,7 +60,6 @@ public class EvolutionManagerScript : MonoBehaviour
         foreach (var ant in liveAnts)
             if (ant != null)
             {
-                Debug.Log("Destroy");
                 Destroy(ant.gameObject);
             }
         ;
@@ -94,6 +93,13 @@ public class EvolutionManagerScript : MonoBehaviour
 
         var best1 = ranked[0];
         var best2 = ranked[1];
+        Debug.Log("Best 1 Search Radius " + best1.Genome.searchRadius);
+        Debug.Log("Best 1 Move Speed" + best1.Genome.moveSpeed);
+
+        Debug.Log("Best 2: " + best2.Genome.searchRadius);
+        Debug.Log("Best 2 Move Speed" + best2.Genome.moveSpeed);
+
+
 
         Debug.Log($"Gen {generationIndex} best fitness: {best1.Fitness:0.00}, second: {best2.Fitness:0.00}");
 
@@ -101,8 +107,8 @@ public class EvolutionManagerScript : MonoBehaviour
         var next = new List<AntGenome>(populationSize);
 
         // (Optional) elitism: keep exact best genomes
-        next.Add(best1.Genome);
-        next.Add(best2.Genome);
+        // next.Add(best1.Genome);
+        // next.Add(best2.Genome);
 
         while (next.Count < populationSize)
         {
