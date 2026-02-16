@@ -422,8 +422,8 @@ public class WorkerAntScript : MonoBehaviour
 
         Vector3 lowerOrigin = new Vector3(transform.position.x, feetY, transform.position.z) + forwardOffset;
         Vector3 upperOrigin = lowerOrigin + Vector3.up * stepHeight;
-        Debug.DrawRay(lowerOrigin, transform.forward * stepCheckDist, Color.red);
-        Debug.DrawRay(upperOrigin, transform.forward * stepCheckDist, Color.blue);
+        // Debug.DrawRay(lowerOrigin, transform.forward * stepCheckDist, Color.red);
+        // Debug.DrawRay(upperOrigin, transform.forward * stepCheckDist, Color.blue);
         bool hitLower = Physics.Raycast(lowerOrigin, transform.forward, stepCheckDist, groundMask);
         bool hitUpper = Physics.Raycast(upperOrigin, transform.forward, stepCheckDist, groundMask);
 

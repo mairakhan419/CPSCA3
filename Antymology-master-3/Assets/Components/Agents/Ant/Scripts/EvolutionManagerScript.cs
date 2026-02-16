@@ -24,7 +24,26 @@ public class EvolutionManagerScript : MonoBehaviour
     private readonly List<WorkerAntScript> liveAnts = new();
     private List<AntGenome> genomes = new();
     private float generationEndTime;
-    private int generationIndex = 0;
+    private int generationIndex = 0;// ---- Averages for current generation's genomes ----
+private float avgMoveSpeed;
+private float avgTurnChance;
+private float avgPauseDuration;
+private float avgSearchRadius;
+private float avgTurnChanceTwoBlocks;
+private float avgAvoidAcid;
+private float avgAcidSenseRadius;
+private float avgDigProbability;
+
+public float AvgMoveSpeed => avgMoveSpeed;
+public float AvgTurnChance => avgTurnChance;
+public float AvgPauseDuration => avgPauseDuration;
+public float AvgSearchRadius => avgSearchRadius;
+public float AvgTurnChanceTwoBlocks => avgTurnChanceTwoBlocks;
+public float AvgAvoidAcid => avgAvoidAcid;
+public float AvgAcidSenseRadius => avgAcidSenseRadius;
+    public float AvgDigProbability => avgDigProbability;
+
+
 
     private System.Random rng = new System.Random(1234);
     public QueenAntScript queen;
@@ -32,6 +51,16 @@ public class EvolutionManagerScript : MonoBehaviour
     [SerializeField] private string csvFileName = "evolution_log.csv";
 
     private bool hasSaved = false;
+
+    public int CurrentGeneration => generationIndex;
+
+    // Seconds remaining in the current generation (clamped)
+    public float SecondsRemaining =>
+        Mathf.Max(0f, generationEndTime - Time.time);
+
+    // Normalized progress 0..1 (optional)
+    public float GenerationT01 =>
+        (evaluationSeconds <= 0f) ? 0f : Mathf.Clamp01(SecondsRemaining / evaluationSeconds);
 
 
     private System.Collections.IEnumerator Start()
@@ -168,23 +197,45 @@ public class EvolutionManagerScript : MonoBehaviour
         generationEndTime = Time.time + evaluationSeconds;
 
         // ---- Compute averages from genomes ----
-        float avgMoveSpeed = 0f;
-        float avgSearchRadius = 0f;
-        float avgDigProbability = 0f;
+        // ---- Compute averages from genomes ----
+// ---- Compute averages from genomes ----
+        avgMoveSpeed = 0f;
+        avgTurnChance = 0f;
+        avgPauseDuration = 0f;
+        avgSearchRadius = 0f;
+        avgTurnChanceTwoBlocks = 0f;
+        avgAvoidAcid = 0f;
+        avgAcidSenseRadius = 0f;
+        avgDigProbability = 0f;
 
-        if (genomes.Count > 0)
+        int n = genomes.Count;
+        if (n > 0)
         {
-            foreach (var g in genomes)
+            for (int i = 0; i < n; i++)
             {
+                var g = genomes[i];
                 avgMoveSpeed += g.moveSpeed;
+                avgTurnChance += g.turnChance;
+                avgPauseDuration += g.pauseDuration;
                 avgSearchRadius += g.searchRadius;
+                avgTurnChanceTwoBlocks += g.turnChanceTwoBlocks;
+                avgAvoidAcid += g.avoidAcid;
+                avgAcidSenseRadius += g.acidSenseRadius;
                 avgDigProbability += g.digProbability;
             }
 
-            avgMoveSpeed /= genomes.Count;
-            avgSearchRadius /= genomes.Count;
-            avgDigProbability /= genomes.Count;
+            float inv = 1f / n;
+            avgMoveSpeed *= inv;
+            avgTurnChance *= inv;
+            avgPauseDuration *= inv;
+            avgSearchRadius *= inv;
+            avgTurnChanceTwoBlocks *= inv;
+            avgAvoidAcid *= inv;
+            avgAcidSenseRadius *= inv;
+            avgDigProbability *= inv;
         }
+
+
 
         // ---- Log message ----
         Debug.Log(
