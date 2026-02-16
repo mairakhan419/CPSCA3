@@ -174,9 +174,9 @@ public class WorkerAntScript : MonoBehaviour
 
         if (!carryingFood && targetMulchTile.HasValue)
         {
-            Vector3 targetPos =
-                (Vector3)targetMulchTile.Value +
-                new Vector3(0.5f, 0f, 0.5f);
+            Vector3Int tt = targetMulchTile.Value;
+            Vector3 targetPos = new Vector3(tt.x + 0.5f, tt.y + 0.5f, tt.z + 0.5f);
+
 
             FacePosition(targetPos);
 
@@ -299,16 +299,23 @@ public class WorkerAntScript : MonoBehaviour
     {
         if (carryingFood) return;
         if (!targetMulchTile.HasValue) return;
-
+        Vector3Int t = targetMulchTile.Value;
         Vector3 tileCenter = (Vector3)targetMulchTile.Value;
         float dist = Vector3.Distance(transform.position, tileCenter);
 
         if (dist < 1.0f)
         {
-            Vector3Int t = targetMulchTile.Value;
+            // Vector3Int t = targetMulchTile.Value;
 
             if (!WorldManager.Instance.TryClaimMulch(t))
+            {
+                // Someone else has it -> don’t pile up here forever
+                targetMulchTile = null;
+                stuckDeadline = Time.time + stuckSeconds;
+                lastTargetDist = float.PositiveInfinity;
                 return;
+            }
+
 
             var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
             if (b is MulchBlock)

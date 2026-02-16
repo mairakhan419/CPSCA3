@@ -96,7 +96,7 @@ public class QueenAntScript : MonoBehaviour
 
     public void ResetForNewGeneration(float resetHealth)
     {
-        Debug.Log("RESETING QUEEN Health: " + health);
+        Debug.Log("RESETING QUEEN Health: " + health + " -> " + resetHealth);
         // Remove all nest blocks this queen placed
         if (WorldManager.Instance != null)
         {
@@ -122,6 +122,9 @@ public class QueenAntScript : MonoBehaviour
         health = Mathf.Clamp(resetHealth, 0f, maxHealth);
         _nextPlaceTime = Time.time + placeIntervalSeconds;
     }
+
+    public int BlocksPlacedThisGeneration => placedNestTiles.Count;
+
 
 
 }
