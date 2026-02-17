@@ -1395,7 +1395,6 @@ private void TurnTowardDir(Vector3Int dir)
 
 private void Turn90ToAvoidAcid()
 {
-        Debug.Log("ABOIDING ACID");
     Vector3Int cur = CurrentTile();
     Vector3Int fwd = ForwardToGridDir();
 

@@ -80,9 +80,7 @@ namespace Antymology.UI
 
         void SetBlockAt(int x, int y, int z)
         {
-            Debug.Log(WorldManager.Instance.GetBlock(x, y, z));
             WorldManager.Instance.SetBlock(x, y, z, currentBlockType);
-            Debug.Log(WorldManager.Instance.GetBlock(x, y, z));
         }
 
         public void Update()

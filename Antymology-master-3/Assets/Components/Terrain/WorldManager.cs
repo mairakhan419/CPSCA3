@@ -280,7 +280,6 @@ namespace Antymology.Terrain
                 ChunkZCoordinate > Blocks.GetLength(2)
             )
             {
-                Debug.Log("Attempted to set a block which didn't exist");
                 return;
             }
             Blocks
@@ -632,15 +631,12 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
         // Call this at generation restart
         public void RestoreRemovedMulch()
         {
-            Debug.Log("RESTORING MULCH TILES: " + removedMulchTiles.Count);
 
             // also clear claims so the new generation can target them again
             claimedMulch.Clear();
-            Debug.Log("Still restoring mulch tiles: " + removedMulchTiles.Count);
 
             foreach (var t in removedMulchTiles)
                 SetBlock(t.x, t.y, t.z, new MulchBlock());
-            Debug.Log("Restored " + removedMulchTiles.Count);
 
             removedMulchTiles.Clear();
         }

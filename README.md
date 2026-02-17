@@ -10,6 +10,8 @@ Each generation interacts with the environment for a fixed duration of one minut
 
 At the end of each generation's period, an evolutionary algorithm will be applied to produce a new population of 50 new worker ants, based on the previous generation's gene pool. Over time, it is expected that the ant colony should become better at surviving and building larger nests.
 
+![Overall](Antymology-master-3/Images/overall.gif)
+
 ### Components That Are Seen on The GUI Screen
 
 1. The terrain it self:
@@ -123,3 +125,12 @@ With the first generation, the worker ants had very different speeds and a wide 
 For the second generation, I noticed more consistent behaviour among the worker ants, and the number of built nest blocks had a drastic increase. I also added log messages for the genome scores, and with every new generation, the speed increased, the acid avoidance increased, and the mulch search radius increased as well. This is due to the better genome scores from the previous generations, ants with these traits had a higher fitness score and reproduced.
 
 I ran the simulation more and noticed that some generations had a decrease in genome scores because some worker ants with lower genome scores ended up having a higher fitness value. Although this happened, it always managed to come back up again in further generations.
+
+## AI Assistance
+
+During development, I used AI tools to help review and improve the codebase. This included analyzing existing scripts, suggesting refactors and performance improvements, assisting with debugging, and proposing alternative implementations for movement, targeting, and world-interaction systems.
+
+## Resources
+
+-   Starting code base by Cooper Davies: [https://github.com/DaviesCooper/Antymology](https://github.com/DaviesCooper/Antymology)
+-   Ant resource by MaxDesign-3D: [https://skfb.ly/o7TZu](https://skfb.ly/o7TZu)

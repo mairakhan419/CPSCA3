@@ -28,16 +28,24 @@ public class WorkerAntSpawnerScript : MonoBehaviour
             if (q != null) queen = q.transform;
         }
 
+
     }
 
     public List<WorkerAntScript> SpawnGeneration(List<AntGenome> genomes)
     {
+
+        if (queen)
+        {
+            queen = null;
+        }
         // Find queen (you don't need to null it first)
         if (queen == null)
         {
             var q = GameObject.FindWithTag("Queen");
             if (q != null) queen = q.transform;
         }
+        Debug.Log("(Called from ----"+ this+  "Queen: " + queen.position);
+
 
         var ants = new List<WorkerAntScript>(genomes.Count);
 
@@ -99,6 +107,7 @@ public class WorkerAntSpawnerScript : MonoBehaviour
 
     private Vector3 GroundToSurface(Vector3 pos)
     {
+
         int groundMask = LayerMask.GetMask("Ground");
 
         Vector3 rayStart = new Vector3(pos.x, WorldManager.Instance.WorldSizeY + 10f, pos.z);

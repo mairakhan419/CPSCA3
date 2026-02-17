@@ -64,6 +64,7 @@ public class EvolutionManagerScript : MonoBehaviour
 
     private System.Collections.IEnumerator Start()
     {
+
         if (queen == null)
         {
             GameObject q = GameObject.FindWithTag("Queen");
@@ -93,6 +94,7 @@ public class EvolutionManagerScript : MonoBehaviour
 
     void Update()
     {
+
         if (queen == null)
         {
             GameObject q = GameObject.FindWithTag("Queen");
@@ -274,7 +276,6 @@ public class EvolutionManagerScript : MonoBehaviour
 
 
 
-
         Debug.Log($"Gen {generationIndex} best fitness: {best1.Fitness:0.00}, second: {best2.Fitness:0.00}");
 
         // Make next generation from top 2
@@ -434,7 +435,6 @@ public class EvolutionManagerScript : MonoBehaviour
         }
 
         File.WriteAllText(path, sb.ToString());
-        Debug.Log($"Saved evolution CSV to: {path}");
     }
 
 public void NotifyAntDied(WorkerAntScript ant)
