@@ -96,7 +96,8 @@ This process includes the following three stages:
 
 1. Download the codebase folder Antymology-master-3 from this repository
 2. Run the simulation on Unity editor
-3. Zoom into the middle of the terrain, this is where the nest is getting built.
+3. Click on Scenes/SampleScene
+4. Zoom into the middle of the terrain, this is where the nest is getting built.
 
 ### Controls For Navigation
 
