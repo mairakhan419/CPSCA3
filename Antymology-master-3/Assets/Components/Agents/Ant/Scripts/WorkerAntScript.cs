@@ -39,6 +39,9 @@ public class WorkerAntScript : MonoBehaviour
     private float pauseUntilTime;
     private int queuedTurnDegrees;
     private bool hasQueuedTurn;
+[Header("Acid turn lock")]
+public float acidTurnLockSeconds = 0.6f;   // prevents 90+90 -> 180 ping-pong
+private float nextAllowedAcidTurnTime = 0f;
 
     // private Rigidbody rb;
     // private CapsuleCollider cap;
@@ -95,7 +98,7 @@ public class WorkerAntScript : MonoBehaviour
     // private Vector3 TileCenter(Vector3Int t) => new Vector3(t.x, t.y-0.5f, t.z);
     private Vector3 TileCenter(Vector3Int t) => new Vector3(t.x, t.y - 0.5f, t.z);
 
-    public bool simpleForwardOnly = true;
+    public bool simpleForwardOnly = false;
     [Header("Post-delivery cooldown")]
     public int postDeliveryForwardTicks = 30;   // how many grid moves to go straight after delivering
     private int postDeliveryTicksLeft = 0;
@@ -113,6 +116,10 @@ private int blockedSinceMove = 0;
 private float nextStuckLogTime = 0f;
 
 private readonly Dictionary<(int x, int z), int> topYCache = new();
+
+    [Header("Acid Avoidance")]
+    public bool neverStepOnAcid = true;
+
 private int GetTopYCached(int x, int z)
 {
     var key = (x, z);
@@ -211,7 +218,7 @@ private int GetTopYCached(int x, int z)
         if (carryingFood)
         {
             // face target if we have one
-            if (!simpleForwardOnly && targetMulchTile.HasValue && Time.time >= forcedTurnUntilTime)
+            if (carryingFood && queen != null && !simpleForwardOnly && Time.time >= forcedTurnUntilTime)
             {
                 Vector3Int tt = targetMulchTile.Value;
                 Vector3 targetPos = new Vector3(tt.x + 0.5f, tt.y + 0.5f, tt.z + 0.5f);
@@ -259,7 +266,7 @@ private int GetTopYCached(int x, int z)
                 }
 
                 // face target if we have one
-                if (!simpleForwardOnly && targetMulchTile.HasValue)
+                if (!simpleForwardOnly && targetMulchTile.HasValue && Time.time >= forcedTurnUntilTime)
                 {
                     Vector3Int tt = targetMulchTile.Value;
                     Vector3 targetPos = new Vector3(tt.x + 0.5f, tt.y + 0.5f, tt.z + 0.5f);
@@ -740,11 +747,72 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
 
 
 
-private bool IsAcidAt(Vector3Int t)
+    private bool IsAcidAt(Vector3Int t)
+    {
+        var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+        return b is AcidicBlock;
+    }
+private bool IsAcidGroundAt(int x, int standY, int z)
 {
-    var b = WorldManager.Instance.GetBlock(t.x, t.y, t.z);
+    // standY is the air tile the ant would stand in; ground is below it
+    var b = WorldManager.Instance.GetBlock(x, standY - 1, z);
     return b is AcidicBlock;
 }
+
+    private Vector3Int ChooseDirWithAcidAvoidance(Vector3Int cur, Vector3Int preferredDir)
+    {
+        // 4-neighborhood
+        Vector3Int[] dirs = {
+        new Vector3Int( 1,0,0),
+        new Vector3Int(-1,0,0),
+        new Vector3Int( 0,0,1),
+        new Vector3Int( 0,0,-1),
+    };
+
+        float bestScore = float.NegativeInfinity;
+        Vector3Int bestDir = preferredDir;
+
+        int curTopY = GetTopYCached(cur.x, cur.z);
+
+        foreach (var d in dirs)
+        {
+            int nx = cur.x + d.x;
+            int nz = cur.z + d.z;
+
+            if (nx < 0 || nx >= WorldManager.Instance.WorldSizeX ||
+                nz < 0 || nz >= WorldManager.Instance.WorldSizeZ)
+                continue;
+
+            int nextTopY = GetTopYCached(nx, nz);
+            if (curTopY < 0 || nextTopY < 0) continue;
+
+            int heightDiff = nextTopY - curTopY;
+            if (heightDiff > maxUpStepsToTarget) continue;
+
+            // container blocks still block
+            if (IsContainer(nx, nextTopY, nz) || IsContainer(nx, nextTopY + 1, nz))
+                continue;
+
+            int standY = nextTopY + 1;
+
+            // base score: prefer the direction you already wanted
+            float score = (d == preferredDir) ? 1f : 0f;
+
+            // penalty for stepping onto acid ground
+            if (Genome.avoidAcid > 0f && IsAcidGroundAt(nx, standY, nz))
+                score -= 10f * Genome.avoidAcid;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestDir = d;
+            }
+        }
+
+        return bestDir;
+    }
+
+
 
     // Returns a steering vector AWAY from nearby acid, or Vector3.zero if none found
     private Vector3 ComputeAcidAvoidanceVector()
@@ -872,6 +940,12 @@ private void DrainHealthOverTime()
         Vector3Int below = new Vector3Int(dest.x, dest.y - 1, dest.z);
         if (!IsSolid(below)) return false;
 
+        if (neverStepOnAcid)
+        {
+            var underBlock = WorldManager.Instance.GetBlock(below.x, below.y, below.z);
+            if (underBlock is AcidicBlock) return false;
+        }
+
         // // Optional: avoid stepping into nest tiles (or near them)
         // var underBlock = WorldManager.Instance.GetBlock(below.x, below.y, below.z);
         // if (underBlock is NestBlock) return false;
@@ -982,7 +1056,7 @@ private void DrainHealthOverTime()
 
 
 
-
+        dir = ChooseDirWithAcidAvoidance(cur, dir);
         int cx = cur.x;
         int cz = cur.z;
 
@@ -1028,12 +1102,22 @@ private void DrainHealthOverTime()
         }
 
         // 5. Success! Move the ant.
+        if (neverStepOnAcid && IsAcidGroundAt(nx, nextTopY + 1, nz))
+        {
+            if (Random.value < Genome.avoidAcid)
+            {
+                HandleBlocked("acid");
+                return;
+            }
+        }
+
         Vector3Int standTile = new Vector3Int(nx, nextTopY + 1, nz);
         transform.position = TileCenter(standTile);
 
         // Reset stuck trackers because we successfully advanced
         blockedStreak = 0;
         blockedSinceMove = 0;
+
     }
 
 private void TryRandomTurn()
@@ -1250,6 +1334,17 @@ private void HandleBlocked(string reason = "")
         topYCache.Clear();
         blockedStreak = 0;
     }
+    if (reason == "acid")
+    {
+        if (Time.time >= nextAllowedAcidTurnTime)
+        {
+            Turn90ToAvoidAcid();
+            nextAllowedAcidTurnTime = Time.time + acidTurnLockSeconds;
+        }
+
+        forcedTurnUntilTime = Time.time + (moveInterval * 1.0f);
+        return;
+    }
 
     RandomTurn90();
     forcedTurnUntilTime = Time.time + (moveInterval * 1.5f);
@@ -1272,10 +1367,77 @@ private void HandleBlocked(string reason = "")
             return new Vector3Int(0, 0, dz > 0 ? 1 : -1);
     }
 
+private bool CanStepTo(Vector3Int cur, Vector3Int dir)
+{
+    int nx = cur.x + dir.x;
+    int nz = cur.z + dir.z;
+
+    if (nx < 0 || nx >= WorldManager.Instance.WorldSizeX ||
+        nz < 0 || nz >= WorldManager.Instance.WorldSizeZ)
+        return false;
+
+    int curTopY = GetTopYCached(cur.x, cur.z);
+    int nextTopY = GetTopYCached(nx, nz);
+    if (curTopY < 0 || nextTopY < 0) return false;
+
+    int heightDiff = nextTopY - curTopY;
+    if (heightDiff > maxUpStepsToTarget) return false;
+
+    if (IsContainer(nx, nextTopY, nz) || IsContainer(nx, nextTopY + 1, nz))
+        return false;
+
+    // this is your acid rule (ground under the stand tile)
+    if (neverStepOnAcid && IsAcidGroundAt(nx, nextTopY + 1, nz))
+        return false;
+
+    return true;
+}
+
+private void TurnTowardDir(Vector3Int dir)
+{
+    // dir is one of (±1,0,0) or (0,0,±1)
+    Vector3 f = new Vector3(dir.x, 0f, dir.z);
+    if (f.sqrMagnitude < 0.5f) return;
+    transform.rotation = Quaternion.LookRotation(f);
+}
+
+private void Turn90ToAvoidAcid()
+{
+        Debug.Log("ABOIDING ACID");
+    Vector3Int cur = CurrentTile();
+    Vector3Int fwd = ForwardToGridDir();
+
+    // compute left/right on the grid
+    Vector3Int left, right;
+    if (fwd.x != 0)
+    {
+        left  = new Vector3Int(0, 0,  fwd.x);   // +x -> +z, -x -> -z
+        right = new Vector3Int(0, 0, -fwd.x);
+    }
+    else
+    {
+        left  = new Vector3Int(-fwd.z, 0, 0);   // +z -> -x, -z -> +x
+        right = new Vector3Int( fwd.z, 0, 0);
+    }
+
+    bool canLeft = CanStepTo(cur, left);
+    bool canRight = CanStepTo(cur, right);
+
+    if (canLeft && canRight)
+        TurnTowardDir(Random.value < 0.5f ? left : right);
+    else if (canLeft)
+        TurnTowardDir(left);
+    else if (canRight)
+        TurnTowardDir(right);
+    else
+        RandomTurn90(); // boxed in: fallback
+}
 
 private void Die()
     {
         // Debug.Log("Dead");
+        var evo = FindFirstObjectByType<EvolutionManagerScript>();
+        if (evo != null) evo.NotifyAntDied(this);
         // If you have an evolution manager tracking ants, notify it here.
         Destroy(gameObject);
     }

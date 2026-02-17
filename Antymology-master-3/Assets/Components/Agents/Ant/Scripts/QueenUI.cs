@@ -16,6 +16,7 @@ public class QueenUI : MonoBehaviour
     public TMP_Text queenHealthText;
     public TMP_Text blocksPlacedText;
     public TMP_Text averagesText;
+public TMP_Text antCountText;
 
     void Awake()
     {
@@ -80,6 +81,13 @@ public class QueenUI : MonoBehaviour
                     $"AcidSenseRadius: {evo.AvgAcidSenseRadius:0.00}\n" +
                     $"DigProb: {evo.AvgDigProbability:0.00}";
         }
+        // ---- Ant count ----
+if (antCountText != null)
+{
+    int alive = (evo != null) ? evo.AliveAntCount : 0;
+    antCountText.text = $"Ants Alive: {alive}";
+}
+
 
 
     }

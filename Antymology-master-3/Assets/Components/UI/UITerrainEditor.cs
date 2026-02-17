@@ -9,7 +9,7 @@ namespace Antymology.UI
 {
     public class UITerrainEditor : Singleton<UITerrainEditor>
     {
-        private AbstractBlock currentBlockType = new MulchBlock();
+        private AbstractBlock currentBlockType = new StoneBlock();
 
         /// <summary>
         /// Replaces the block at the cursor with the current block type.

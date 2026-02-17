@@ -12,10 +12,10 @@ public class EvolutionManagerScript : MonoBehaviour
     public WorkerAntSpawnerScript spawner;
 
     [Header("Evolution Timing")]
-    public float evaluationSeconds = 20f;
+    public float evaluationSeconds = 60f;
 
     [Header("Population")]
-    public int populationSize = 2;
+    public int populationSize = 50;
 
     [Header("Mutation")]
     [Range(0f, 1f)] public float mutationRate = 0.15f;
@@ -25,24 +25,24 @@ public class EvolutionManagerScript : MonoBehaviour
     private List<AntGenome> genomes = new();
     private float generationEndTime;
     private int generationIndex = 0;// ---- Averages for current generation's genomes ----
-private float avgMoveSpeed;
-private float avgTurnChance;
-private float avgPauseDuration;
-private float avgSearchRadius;
-private float avgTurnChanceTwoBlocks;
-private float avgAvoidAcid;
-private float avgAcidSenseRadius;
-private float avgDigProbability;
+    private float avgMoveSpeed;
+    private float avgTurnChance;
+    private float avgPauseDuration;
+    private float avgSearchRadius;
+    private float avgTurnChanceTwoBlocks;
+    private float avgAvoidAcid;
+    private float avgAcidSenseRadius;
+    private float avgDigProbability;
 
-public float AvgMoveSpeed => avgMoveSpeed;
-public float AvgTurnChance => avgTurnChance;
-public float AvgPauseDuration => avgPauseDuration;
-public float AvgSearchRadius => avgSearchRadius;
-public float AvgTurnChanceTwoBlocks => avgTurnChanceTwoBlocks;
-public float AvgAvoidAcid => avgAvoidAcid;
-public float AvgAcidSenseRadius => avgAcidSenseRadius;
+    public float AvgMoveSpeed => avgMoveSpeed;
+    public float AvgTurnChance => avgTurnChance;
+    public float AvgPauseDuration => avgPauseDuration;
+    public float AvgSearchRadius => avgSearchRadius;
+    public float AvgTurnChanceTwoBlocks => avgTurnChanceTwoBlocks;
+    public float AvgAvoidAcid => avgAvoidAcid;
+    public float AvgAcidSenseRadius => avgAcidSenseRadius;
     public float AvgDigProbability => avgDigProbability;
-
+    private readonly List<WorkerAntScript> _currentAnts = new();
 
 
     private System.Random rng = new System.Random(1234);
@@ -195,13 +195,14 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
         liveAnts.Clear();
 
         // spawn new ants
-        liveAnts.AddRange(spawner.SpawnGeneration(genomes));
+        var spawned = spawner.SpawnGeneration(genomes);
+        liveAnts.AddRange(spawned);
         // generationIndex++;
         generationEndTime = Time.time + evaluationSeconds;
 
         // ---- Compute averages from genomes ----
         // ---- Compute averages from genomes ----
-// ---- Compute averages from genomes ----
+        // ---- Compute averages from genomes ----
         avgMoveSpeed = 0f;
         avgTurnChance = 0f;
         avgPauseDuration = 0f;
@@ -367,68 +368,87 @@ public float AvgAcidSenseRadius => avgAcidSenseRadius;
     }
 
     private readonly List<GenerationRecord> history = new();
-
-
-
-private void OnApplicationQuit()
-{
-    SaveCsvOnce();
-}
-
-// In the Unity Editor, OnApplicationQuit can be unreliable.
-// OnDisable is usually called when you press Stop.
-private void OnDisable()
-{
-    SaveCsvOnce();
-}
-
-private void SaveCsvOnce()
-{
-    if (hasSaved) return;
-    hasSaved = true;
-
-    if (history.Count == 0) return;
-
-    string path = Path.Combine(Application.persistentDataPath, csvFileName);
-
-    var sb = new StringBuilder(16 * 1024);
-
-    sb.AppendLine(
-        "generation,queenBlocksPlaced," +
-        "best1Fitness,best1MoveSpeed,best1TurnChance,best1PauseDuration,best1SearchRadius,best1TurnChanceTwoBlocks,best1AvoidAcid,best1AcidSenseRadius,best1DigProbability," +
-        "best2Fitness,best2MoveSpeed,best2TurnChance,best2PauseDuration,best2SearchRadius,best2TurnChanceTwoBlocks,best2AvoidAcid,best2AcidSenseRadius,best2DigProbability"
-    );
-
-    foreach (var r in history)
+    public int AliveAntCount
     {
-        sb.Append(r.generation).Append(',')
-          .Append(r.queenBlocksPlaced).Append(',')
+        get
+        {
+            for (int i = liveAnts.Count - 1; i >= 0; i--)
+                if (liveAnts[i] == null) liveAnts.RemoveAt(i);
 
-          .Append(r.best1Fitness).Append(',')
-          .Append(r.best1MoveSpeed).Append(',')
-          .Append(r.best1TurnChance).Append(',')
-        //   .Append(r.best1PauseDuration).Append(',')
-          .Append(r.best1SearchRadius).Append(',')
-        //   .Append(r.best1TurnChanceTwoBlocks).Append(',')
-          .Append(r.best1AvoidAcid).Append(',')
-          .Append(r.best1AcidSenseRadius).Append(',')
-          .Append(r.best1DigProbability).Append(',')
-
-          .Append(r.best2Fitness).Append(',')
-          .Append(r.best2MoveSpeed).Append(',')
-          .Append(r.best2TurnChance).Append(',')
-        //   .Append(r.best2PauseDuration).Append(',')
-          .Append(r.best2SearchRadius).Append(',')
-        //   .Append(r.best2TurnChanceTwoBlocks).Append(',')
-          .Append(r.best2AvoidAcid).Append(',')
-          .Append(r.best2AcidSenseRadius).Append(',')
-          .Append(r.best2DigProbability);
-
-        sb.AppendLine();
+            return liveAnts.Count;
+        }
     }
 
-    File.WriteAllText(path, sb.ToString());
-    Debug.Log($"Saved evolution CSV to: {path}");
+    public void SetCurrentAnts(List<WorkerAntScript> ants)
+    {
+        _currentAnts.Clear();
+        if (ants != null) _currentAnts.AddRange(ants);
+    }
+
+    private void OnApplicationQuit()
+    {
+        SaveCsvOnce();
+    }
+
+    // In the Unity Editor, OnApplicationQuit can be unreliable.
+    // OnDisable is usually called when you press Stop.
+    private void OnDisable()
+    {
+        SaveCsvOnce();
+    }
+
+    private void SaveCsvOnce()
+    {
+        if (hasSaved) return;
+        hasSaved = true;
+
+        if (history.Count == 0) return;
+
+        string path = Path.Combine(Application.persistentDataPath, csvFileName);
+
+        var sb = new StringBuilder(16 * 1024);
+
+        sb.AppendLine(
+            "generation,queenBlocksPlaced," +
+            "best1Fitness,best1MoveSpeed,best1TurnChance,best1PauseDuration,best1SearchRadius,best1TurnChanceTwoBlocks,best1AvoidAcid,best1AcidSenseRadius,best1DigProbability," +
+            "best2Fitness,best2MoveSpeed,best2TurnChance,best2PauseDuration,best2SearchRadius,best2TurnChanceTwoBlocks,best2AvoidAcid,best2AcidSenseRadius,best2DigProbability"
+        );
+
+        foreach (var r in history)
+        {
+            sb.Append(r.generation).Append(',')
+              .Append(r.queenBlocksPlaced).Append(',')
+
+              .Append(r.best1Fitness).Append(',')
+              .Append(r.best1MoveSpeed).Append(',')
+              .Append(r.best1TurnChance).Append(',')
+              //   .Append(r.best1PauseDuration).Append(',')
+              .Append(r.best1SearchRadius).Append(',')
+              //   .Append(r.best1TurnChanceTwoBlocks).Append(',')
+              .Append(r.best1AvoidAcid).Append(',')
+              .Append(r.best1AcidSenseRadius).Append(',')
+              .Append(r.best1DigProbability).Append(',')
+
+              .Append(r.best2Fitness).Append(',')
+              .Append(r.best2MoveSpeed).Append(',')
+              .Append(r.best2TurnChance).Append(',')
+              //   .Append(r.best2PauseDuration).Append(',')
+              .Append(r.best2SearchRadius).Append(',')
+              //   .Append(r.best2TurnChanceTwoBlocks).Append(',')
+              .Append(r.best2AvoidAcid).Append(',')
+              .Append(r.best2AcidSenseRadius).Append(',')
+              .Append(r.best2DigProbability);
+
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(path, sb.ToString());
+        Debug.Log($"Saved evolution CSV to: {path}");
+    }
+
+public void NotifyAntDied(WorkerAntScript ant)
+{
+    liveAnts.Remove(ant);
 }
 
 }
