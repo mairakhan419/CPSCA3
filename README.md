@@ -1,4 +1,5 @@
-s# CPSC 565 Assignment 3
+# CPSC 565 Assignment 3
+
 By: Maira Khan
 
 ### What This Simulation Does
@@ -41,21 +42,41 @@ At the end of each generation's period, an evolutionary algorithm will be applie
 
 ### Behaviour of The Queen Ant in Simulation
 
-the queen builds the nest based on 1/3 of her energy. she starts with ... energy points and then she will be losing ... energy points every time she adds a nest block to the nest.
+-   At the start of the simulation, a single queen ant is spawned at the center of the terrain where the nest is also built, and her head is sticking inside the nest home to show that she is building the nest up.
+-   The queen has a maximum energy capacity of 300 energy points. At the beginning of the simulation (and at the start of each generation), her energy is reset to a starting value of 100. This energy acts as a resource pool that allows her to construct nest blocks. Her energy increases when worker ants deliver mulch and decreases when she builds nest structures.
+-   The queen attempts to place nest blocks over time, but only when she has sufficient energy. A block will only be placed if her current energy is above a threshold of 200 health points.
+-   Each nest block costs one-third of her maximum energy (100 health points).
 
 ### Evolution Algorithm Applied to New Generation of Worker Ants
 
-What each ants genomes are built up of:
+**What each worker ants genomes are built up of:**
+Each worker ant has a genome, which is a collection of behavioural traits that control how it interacts with the environment. These traits are numeric values that influence the ant's movement, exploration, survival, and terrain interaction.
+
+The genome includes the following characteristics:
+
+    - **Movement timing –** Determines how frequently the ant moves across the terrain.
+
+    - **Turning probability –** Controls how often the ant randomly changes direction while wandering.
+
+    - **Two-block turn tendency –** Influences how the ant reacts when blocked by larger terrain obstacles.
+
+    - **Search radius –** Determines how far the ant can detect mulch blocks. Ants with larger search search radius can locate food from farther away.
+
+    - **Pause duration –** Controls how long the ant pauses before changing direction or making movement decisions.
+
+    - **Acid avoidance tendency –** Determines how strongly the ant tries to avoid acidic terrain.
+
+    - **Acid sensing radius –** Defines how far the ant can detect acid blocks around it.
+
+    - **Digging probability –** Determines the likelihood that an ant will dig and remove grass blocks beneath it.
 
 how the fitness values are assigned:
 
-how the parents are chosen:
-
-evolution algorithm applied:
+how the evolution algorithm works, include information on the parent selection, crossover, and mutation:
 
 ### Instructions For How To Run Simulation
 
-1. Download the codebase on this repository
+1. Download the codebase folder Antymology-master-3 from this repository
 2. Run the simulation on Unity editor
 3. Zoom into the middle of the terrain, this is where the nest is getting built.
 
