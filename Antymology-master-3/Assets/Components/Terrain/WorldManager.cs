@@ -356,7 +356,6 @@ namespace Antymology.Terrain
                             AbstractBlock blockUnderneath = Blocks[x, y - 1, z];
 
                                 // 2. Only attempt to spawn mulch if the block below is NOT Air and NOT Acid
-                                // (You can refine this to specifically "is GrassBlock" if you prefer)
                                 bool isGroundBelow = blockUnderneath != null && !(blockUnderneath is AirBlock) && !(blockUnderneath is AcidicBlock);
 
                                 if (isGroundBelow && rng.NextDouble() < mulchChance)
@@ -612,7 +611,7 @@ public void CacheInitialMulchTiles(int yMin, int yMax)
             {
                 RecordRemovedMulch(position);
                 SetBlock(position.x, position.y, position.z, new AirBlock());
-                ReleaseMulchClaim(position); // optional safety
+                ReleaseMulchClaim(position);
             }
         }
 

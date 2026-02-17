@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using Antymology.Terrain;   // <-- ADD THIS
+using Antymology.Terrain;
 using System.IO;
 using System.Text;
 
@@ -58,7 +58,6 @@ public class EvolutionManagerScript : MonoBehaviour
     public float SecondsRemaining =>
         Mathf.Max(0f, generationEndTime - Time.time);
 
-    // Normalized progress 0..1 (optional)
     public float GenerationT01 =>
         (evaluationSeconds <= 0f) ? 0f : Mathf.Clamp01(SecondsRemaining / evaluationSeconds);
 
@@ -201,8 +200,6 @@ public class EvolutionManagerScript : MonoBehaviour
         generationEndTime = Time.time + evaluationSeconds;
 
         // ---- Compute averages from genomes ----
-        // ---- Compute averages from genomes ----
-        // ---- Compute averages from genomes ----
         avgMoveSpeed = 0f;
         avgTurnChance = 0f;
         avgPauseDuration = 0f;
@@ -283,9 +280,6 @@ public class EvolutionManagerScript : MonoBehaviour
         // Make next generation from top 2
         var next = new List<AntGenome>(populationSize);
 
-        // (Optional) elitism: keep exact best genomes
-        // next.Add(best1.Genome);
-        // next.Add(best2.Genome);
 
         while (next.Count < populationSize)
         {
@@ -312,7 +306,6 @@ public class EvolutionManagerScript : MonoBehaviour
             avoidAcid = Pick() ? a.avoidAcid : b.avoidAcid,
             acidSenseRadius = Pick() ? a.acidSenseRadius : b.acidSenseRadius,
 
-            // FIX: include digProbability
             digProbability = Pick() ? a.digProbability : b.digProbability,
         };
     }
@@ -337,7 +330,6 @@ public class EvolutionManagerScript : MonoBehaviour
         if (rng.NextDouble() < mutationRate) g.avoidAcid = Jitter(g.avoidAcid, 0f, 1f);
         if (rng.NextDouble() < mutationRate) g.acidSenseRadius = Mathf.Clamp(g.acidSenseRadius + rng.Next(-1, 2), 1, 8);
 
-        // FIX: mutate digProbability (0..1)
         if (rng.NextDouble() < mutationRate) g.digProbability = Jitter(g.digProbability, 0f, 1f);
     }
     [System.Serializable]
@@ -390,8 +382,7 @@ public class EvolutionManagerScript : MonoBehaviour
         SaveCsvOnce();
     }
 
-    // In the Unity Editor, OnApplicationQuit can be unreliable.
-    // OnDisable is usually called when you press Stop.
+
     private void OnDisable()
     {
         SaveCsvOnce();

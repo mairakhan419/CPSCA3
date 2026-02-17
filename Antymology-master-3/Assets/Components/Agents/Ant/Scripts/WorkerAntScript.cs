@@ -13,7 +13,7 @@ public class WorkerAntScript : MonoBehaviour
     public float moveSpeed = 2f;
     public float digProbability = 0f;
 
-    public float turnSpeed = 180f; // not used in wander, but you can keep it
+    public float turnSpeed = 180f;
 
     [Header("Voxel Food Sensing")]
     public int searchRadius = 6;
@@ -33,7 +33,7 @@ public class WorkerAntScript : MonoBehaviour
     [Header("Random Wander")]
     public float changeDirInterval = 3f;   // how often we pick a new direction
     public float pauseDuration = 0.25f;    // how long we stop before turning
-    public int turnStepDegrees = 45;       // keep at 45 for your request
+    public int turnStepDegrees = 45;
 
     private float nextDecisionTime;
     private float pauseUntilTime;
@@ -82,16 +82,16 @@ private float nextAllowedAcidTurnTime = 0f;
     private bool blockedByNestThisTick = false;
 
     [Header("Nest Avoidance")]
-    public float nestAvoidStrength = 1.0f;     // how strongly we steer away (0..1 recommended)
+    public float nestAvoidStrength = 1.0f;     // how strongly we steer away (0..1)
     public int nestSenseRadius = 2;            // in blocks
-    public float nestBrakeDistance = 0.8f;     // if nest is this close in front, don't move forward this tick
+    public float nestBrakeDistance = 0.8f;
 
     private bool brakeForNestThisFixedTick = false;
 
     [Header("Grid Teleport Movement")]
     public float moveInterval = 1f;   // how often we hop to a new tile
-    public int maxTeleportBlocks = 3;    // your "as long as it's shorter than 3 blocks"
-    public bool allowDiagonal = false;   // optional
+    public int maxTeleportBlocks = 3;
+    public bool allowDiagonal = false;
     private float nextMoveTime;
     private Vector3Int gridDir = new Vector3Int(1, 0, 0); // current grid heading
 
@@ -106,7 +106,7 @@ private float nextAllowedAcidTurnTime = 0f;
     private bool InPostDeliveryCooldown => postDeliveryTicksLeft > 0;
 
 [Header("Visuals")]
-public Renderer antRenderer;   // assign in inspector (or auto-find)
+public Renderer antRenderer;
     public Color targetMulchColor = Color.magenta; // purple
     private int blockedStreak = 0;
 private int blockedTotal = 0;
@@ -234,7 +234,7 @@ private int GetTopYCached(int x, int z)
         else
         {
 
-            // NEW: after delivering, go forward-only for a bit and do NOT target mulch
+            // after delivering, go forward-only for a bit and do NOT target mulch
             if (InPostDeliveryCooldown)
             {
                 targetMulchTile = null;
@@ -279,8 +279,6 @@ private int GetTopYCached(int x, int z)
         }
 
 
-        // 3) wander turning decisions - keep your turn code here (unchanged)
-        // (your nextDecisionTime / pause / rotate code)
 
         // 4) ONE place where movement happens (always)
         if (Time.time >= nextMoveTime)
@@ -288,7 +286,7 @@ private int GetTopYCached(int x, int z)
             nextMoveTime = Time.time + moveInterval;
             GridMoveTick();
 
-            // NEW: count down “forward only” moves
+            // count down “forward only” moves
             if (postDeliveryTicksLeft > 0)
                 postDeliveryTicksLeft--;
         }
@@ -428,10 +426,10 @@ private int GetTopYCached(int x, int z)
                     return;
                 }
 
-                // IMPORTANT: No digProbability for mulch
+                //  No digProbability for mulch
                 carryingFood = true;
-health = Mathf.Min(maxHealth, health + healthGainOnPickup);
-                // Prefer a WorldManager method that records + removes (see WorldManager section)
+            health = Mathf.Min(maxHealth, health + healthGainOnPickup);
+
                 WorldManager.Instance.RemoveMulchBlock(t);
                 Fitness += 3;
                 targetMulchTile = null;
@@ -460,8 +458,7 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
         if (UnityEngine.Random.value <= digProbability)
         {
             WorldManager.Instance.RemoveGrassBlock(under);
-            // Optional: reward fitness, up to you
-            // Fitness += 0.5f;
+
         }
     }
 
@@ -543,7 +540,7 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
             // Clear any target so we don't immediately resume targeting
             targetMulchTile = null;
 
-            // Optional: prevent any steering snaps right after delivery
+            // prevent any steering snaps right after delivery
             forcedTurnUntilTime = Time.time + moveInterval * 0.25f;
 
             var queenScript = queen.GetComponent<QueenAntScript>();
@@ -600,7 +597,6 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
         return best;
     }
 
-    // Put these helpers anywhere in WorkerAntScript (class scope)
     private Vector3Int WorldToTile(Vector3 p)
     {
         // Hit points will be on the surface; nudge slightly inward so we pick the block we struck.
@@ -615,7 +611,6 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
     {
         if (WorldManager.Instance == null) return null;
 
-        // Nudge inside the hit surface so we choose the block we struck
         Vector3 inside = hit.point - hit.normal * 0.01f;
 
         Vector3Int t = new Vector3Int(
@@ -730,9 +725,7 @@ health = Mathf.Min(maxHealth, health + healthGainOnPickup);
         // Snap turn (simple and effective)
         transform.rotation = Quaternion.LookRotation(toQueen.normalized);
 
-        // If you want smooth turn instead, use:
-        // Quaternion target = Quaternion.LookRotation(toQueen.normalized);
-        // transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeed * Time.deltaTime);
+
     }
     void FacePosition(Vector3 worldPos)
     {
@@ -795,7 +788,6 @@ private bool IsAcidGroundAt(int x, int standY, int z)
 
             int standY = nextTopY + 1;
 
-            // base score: prefer the direction you already wanted
             float score = (d == preferredDir) ? 1f : 0f;
 
             // penalty for stepping onto acid ground
@@ -946,7 +938,7 @@ private void DrainHealthOverTime()
             if (underBlock is AcidicBlock) return false;
         }
 
-        // // Optional: avoid stepping into nest tiles (or near them)
+        // // avoid stepping into nest tiles (or near them)
         // var underBlock = WorldManager.Instance.GetBlock(below.x, below.y, below.z);
         // if (underBlock is NestBlock) return false;
 

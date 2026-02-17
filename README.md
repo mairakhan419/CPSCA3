@@ -50,29 +50,45 @@ At the end of each generation's period, an evolutionary algorithm will be applie
 ### Evolution Algorithm Applied to New Generation of Worker Ants
 
 **What each worker ants genomes are built up of:**
+
 Each worker ant has a genome, which is a collection of behavioural traits that control how it interacts with the environment. These traits are numeric values that influence the ant's movement, exploration, survival, and terrain interaction.
 
 The genome includes the following characteristics:
 
-    - **Movement timing –** Determines how frequently the ant moves across the terrain.
+    1. Movement timing – Determines how frequently the ant moves across the terrain. This also determines the speed of the ants.
 
-    - **Turning probability –** Controls how often the ant randomly changes direction while wandering.
+    2. Turning probability – Controls how often the ant randomly changes direction while wandering.
 
-    - **Two-block turn tendency –** Influences how the ant reacts when blocked by larger terrain obstacles.
+    3. Two-block turn tendency – Influences how the ant reacts when blocked by larger terrain obstacles.
 
-    - **Search radius –** Determines how far the ant can detect mulch blocks. Ants with larger search search radius can locate food from farther away.
+    4. Search radius – Determines how far the ant can detect mulch blocks. Ants with larger search search radius can locate food from farther away.
 
-    - **Pause duration –** Controls how long the ant pauses before changing direction or making movement decisions.
+    5. Acid avoidance tendency – Determines how strongly the ant tries to avoid acidic terrain.
 
-    - **Acid avoidance tendency –** Determines how strongly the ant tries to avoid acidic terrain.
+    6. Digging probability – Determines the likelihood that an ant will dig and remove grass blocks beneath it.
 
-    - **Acid sensing radius –** Defines how far the ant can detect acid blocks around it.
+**How the fitness values are assigned:**
 
-    - **Digging probability –** Determines the likelihood that an ant will dig and remove grass blocks beneath it.
+Fitness represents how successful each worker ant is during a generation. Each worker ant has it's own fitness value. In the end, the fitness values determine which ants are selected to pass their genes to the next generation.
 
-how the fitness values are assigned:
+Each worker ants fitness increases based on the ant's behaviours and actions in the terrain:
 
-how the evolution algorithm works, include information on the parent selection, crossover, and mutation:
+    1. Consuming mulch blocks – fitness value increase by +3
+
+    2. Transferring energy to the queen ant - fitness value increases by +5
+
+    3. Steps on an acid block - fitness value decrements by -2
+
+**How the evolution algorithm works:**
+At the end of each generation, the simulation runs an evolutionary algorithm to produce the next population of worker ants (50 for each new generation).
+
+This process includes the following three stages:
+
+    1. Parent selection – The two ants with the highest fitness scores are selected as parents.
+
+    2. Crossover (To create offspring genomes) - Each gene is chosen randomly from one of the two parents. For example, a child ant might inherit Movement timing from Parent A and Acid avoidance from Parent B. The result is a new genome that combines strategies from the best performers.
+
+    3. Mutation (Random Variation) - After crossover, mutation is applied. Mutation introduces small random changes to genes, and it helps prevent evolution from stagnating and allows new behaviours to emerge. For my case, I made the mutation rate 0.15, so there is a 15% chance that the genes will be mutated for the each new offspring.
 
 ### Instructions For How To Run Simulation
 
@@ -82,6 +98,28 @@ how the evolution algorithm works, include information on the parent selection, 
 
 ### Controls For Navigation
 
+**W** - Up
+
+**A** - Left
+
+**S** - Back
+
+**D** - Right
+
+**Q** - Up
+
+**E** - Down
+
+**Left Click or Scroll Wheel** - Rotate Camera
+
+**Right Click on a block** - Add a Stone Block
+
 ### Discussion
 
-i ran the simulation up to generation ... and notices some interesting results.
+Upon running the simulation, I noticed the following:
+
+With the first generation, the worker ants had very different speeds and a wide variety of dig probabilities, so some were digging way more than others. Some were also finding mulch a lot easier, and the queen did not place many nest blocks.
+
+For the second generation, I noticed more consistent behaviour among the worker ants, and the number of built nest blocks had a drastic increase. I also added log messages for the genome scores, and with every new generation, the speed increased, the acid avoidance increased, and the mulch search radius increased as well. This is due to the better genome scores from the previous generations, ants with these traits had a higher fitness score and reproduced.
+
+I ran the simulation more and noticed that some generations had a decrease in genome scores because some worker ants with lower genome scores ended up having a higher fitness value. Although this happened, it always managed to come back up again in further generations.

@@ -14,7 +14,6 @@ public struct AntGenome
     [Range(1, 8)]  public int acidSenseRadius;
     [Range(0f, 1f)] public float digProbability;
 
-    // Remove "= 3f" here. Struct fields cannot have initializers in C# 9.
     public float changeDirInterval;
 
     public static AntGenome RandomGenome()
